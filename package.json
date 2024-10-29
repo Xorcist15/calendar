@@ -1,0 +1,26 @@
+{
+  "name": "calendar-app",
+  "version": "1.0.0",
+  "description": "AP1 Creation d'une application Web de Calendrier",
+  "main": "index.js",
+  "type":"module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Xorcist15/CalendarWebApp.git"
+  },
+  "keywords": [
+    "AP",
+    "calendar",
+    "web",
+    "app"
+  ],
+  "author": "Youssef",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Xorcist15/CalendarWebApp/issues"
+  },
+  "homepage": "https://github.com/Xorcist15/CalendarWebApp#readme"
+}

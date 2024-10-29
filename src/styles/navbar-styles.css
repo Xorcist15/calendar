@@ -1,0 +1,62 @@
+#nav-bar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #333;
+  color: #fff;
+  padding: 10px 20px;
+}
+
+.nav-bar-element {
+  display: flex;
+  align-items: center;
+}
+
+#nav-bar-part-one,
+#nav-bar-part-two {
+  display: flex;
+}
+
+#button-bars,
+#button-today,
+#button-previous,
+#button-next,
+#button-search,
+#button-help,
+#button-settings {
+  margin-right: 15px;
+  cursor: pointer;
+}
+
+#logo {
+  font-size: 24px;
+  font-weight: bold;
+  margin-right: 30px;
+}
+
+#button-today button {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+#button-today button:hover {
+  background-color: #0056b3;
+}
+
+#date-current,
+#date-week-number {
+  margin-right: 15px;
+  font-size: 16px;
+}
+
+.fa {
+  /* font-size: 18px; */
+}
+
+.fa:hover {
+  /* color: #007bff; */
+}
