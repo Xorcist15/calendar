@@ -158,7 +158,14 @@ class WeekDisplay extends HTMLElement {
         const height = (task.duration / 60) * slotHeight;
         taskEl.style.height = `${height}px`;
 
-        taskEl.textContent = `this is task`;
+        // taskEl.textContent = `this is task`;
+
+        taskEl.addEventListener('mousedown', (e) => {
+          if (!e.target.classList.contains("resize-handle") &&
+            !e.target.classList.contains("remove-btn")) {
+            this.showTaskForm(task, taskEl);
+          }
+        });
 
         // Add resize handles to the task element
         this.addResizeHandles(taskEl);
@@ -167,6 +174,74 @@ class WeekDisplay extends HTMLElement {
         this.dragAndDrop(taskEl, task);
 
         calendar.appendChild(taskEl);
+
+        // const taskEl = document.createElement("div");
+        // taskEl.classList.add("task");
+        // taskEl.setAttribute("data-id", task.taskId);
+        //
+        // // Calculate task positions
+        // const left = (task.dayPosition * calWidth) / 7 + (columnIndex * calWidth) / (7 * columns.length);
+        // const top = (task.startTime / 1440) * calHeight;
+        // const width = calWidth / (7 * columns.length);
+        //
+        // taskEl.style.left = `${(left / calWidth) * 100}%`;
+        // taskEl.style.width = `${(width / calWidth) * 100}%`;
+        // taskEl.style.top = `${top}px`;
+        // const height = (task.duration / 60) * slotHeight;
+        // taskEl.style.height = `${height}px`;
+        //
+        // // Create task header
+        // const taskHeader = document.createElement("div");
+        // taskHeader.classList.add("task-header");
+        //
+        // // Create and append title
+        // const taskTitle = document.createElement("span");
+        // taskTitle.classList.add("task-title");
+        // taskTitle.textContent = task.title; // Use task's title
+        // taskHeader.appendChild(taskTitle);
+        //
+        // // Create and append times
+        // const taskTimes = document.createElement("div");
+        // taskTimes.classList.add("task-times");
+        //
+        // // Start time
+        // const taskStartTime = document.createElement("span");
+        // taskStartTime.classList.add("task-start-time");
+        // taskStartTime.textContent = `Start: ${this.formatTime(task.startTime)}`; // Format your time
+        // taskTimes.appendChild(taskStartTime);
+        //
+        // // End time
+        // const taskEndTime = document.createElement("span");
+        // taskEndTime.classList.add("task-end-time");
+        // taskEndTime.textContent = `End: ${this.formatTime(task.endTime)}`; // Format your time
+        // taskTimes.appendChild(taskEndTime);
+        //
+        // // Duration
+        // const taskDuration = document.createElement("span");
+        // taskDuration.classList.add("task-duration");
+        // taskDuration.textContent = `Duration: ${task.duration / 60} hour${task.duration / 60 > 1 ? 's' : ''}`; // Format duration
+        // taskTimes.appendChild(taskDuration);
+        //
+        // // Append times to header
+        // taskHeader.appendChild(taskTimes);
+        //
+        // // Append header to task element
+        // taskEl.appendChild(taskHeader);
+        //
+        // // Add resize handles and remove button
+        // this.addResizeHandles(taskEl);
+        // this.addRemoveButton(taskEl);
+        //
+        // // Event listener for showing task form
+        // taskEl.addEventListener('mousedown', (e) => {
+        //   if (!e.target.classList.contains("resize-handle") &&
+        //     !e.target.classList.contains("remove-btn")) {
+        //     this.showTaskForm(task, taskEl);
+        //   }
+        // });
+        //
+        // // Append task element to calendar
+        // calendar.appendChild(taskEl);
       });
     });
   }
@@ -249,6 +324,8 @@ class WeekDisplay extends HTMLElement {
 
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+
+      this.showTaskForm(currentTask, currentElement);
     };
 
     const onMouseDown = (e) => {
@@ -310,7 +387,6 @@ class WeekDisplay extends HTMLElement {
         this.addRemoveButton(taskEl);
         this.addStartEndTimes(taskEl, task);
         this.dragAndDrop(taskEl, task);
-
         calendar.appendChild(taskEl);
 
         currentTask = task;
@@ -326,6 +402,48 @@ class WeekDisplay extends HTMLElement {
     };
     calendar.addEventListener('mousedown', onMouseDown);
   }
+
+  showTaskForm(task, taskElement) {
+    const form = document.createElement('form');
+    form.innerHTML = `
+      <label>Title: <input type="text" name="title" value="${task.title}"></label>
+      <label>Start Time: <input type="number" name="startTime" value="${task.startTime}"></label>
+      <label>End Time: <input type="number" name="endTime" value="${task.endTime}"></label>
+      <button type="submit">Save</button>
+    `;
+    form.style.position = 'absolute';
+    form.style.left = '50%';
+    form.style.top = '50%';
+    form.style.transform = 'translate(-50%, -50%)';
+    form.style.backgroundColor = 'white';
+    form.style.padding = '1rem';
+    form.style.border = '1px solid #ccc';
+    form.style.zIndex = 1000;
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      task.title = formData.get('title');
+      task.startTime = parseInt(formData.get('startTime'));
+      task.endTime = parseInt(formData.get('endTime'));
+
+      taskElement.textContent = task.title;
+      const calendar = this.shadowRoot.querySelector(".calendar");
+      const calendarHeight = calendar.clientHeight;
+      const totalMinutesDay = 1440;
+
+      taskElement.style.top = `${(task.startTime / totalMinutesDay) * calendarHeight}px`;
+      taskElement.style.height = `${((task.endTime - task.startTime) / totalMinutesDay) * calendarHeight}px`;
+
+      document.body.removeChild(form);
+      this.renderTasks();
+    });
+
+    document.body.appendChild(form);
+  }
+
+
 
   dragAndDrop(taskEl, task) {
     const calendar = this.shadowRoot.querySelector(".calendar");
@@ -431,14 +549,13 @@ class WeekDisplay extends HTMLElement {
       y = slotIndex * height;
     } else if (context === "drag") {
       x = e.clientX - rect.left; // Time column 
-      // y = Math.floor((e.clientY - rect.top) / ) ; // Time row
       y = e.clientY - rect.top; // Time row
     }
     return { x, y, dayIndex };
   }
 
 
-  formatMinutesAsTime(minutes) {
+  formatTime(minutes) {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
@@ -449,8 +566,8 @@ class WeekDisplay extends HTMLElement {
     const start = document.createElement("div");
     const end = document.createElement("div");
 
-    start.textContent = this.formatMinutesAsTime(task.startTime);
-    end.textContent = this.formatMinutesAsTime(task.endTime);
+    start.textContent = this.formatTime(task.startTime);
+    end.textContent = this.formatTime(task.endTime);
 
     end.classList.add("end-time");
     start.classList.add("start-time");
@@ -465,27 +582,17 @@ class WeekDisplay extends HTMLElement {
     const removeBtn = document.createElement("div");
     removeBtn.classList.add("remove-btn");
     removeBtn.textContent = "✕";
-    taskEl.appendChild(removeBtn);
-    removeBtn.addEventListener("click", () => {
-      console.log("hello remove btn");
-    });
-  }
 
-  // removeTaskEvent(taskEl) {
-  //   taskEl.querySelector(".remove-btn").addEventListener("click", (e) => {
-  //     e.preventDefault();
-  //     e.stopPropagation();
-  //
-  //     const taskId = taskEl.getAttribute("data-id");
-  //     if (!taskId) {
-  //       console.error("Task ID not found on task element");
-  //       return;
-  //     }
-  //     this.tasks = this.tasks.filter(task => task.taskId !== taskId);
-  //     taskEl.remove();
-  //     this.renderTasks();
-  //   });
-  // }
+    removeBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const taskId = taskEl.getAttribute("data-id");
+      this.tasks = this.tasks.filter(task => task.taskId != taskId);
+      this.renderTasks();
+    });
+
+    taskEl.appendChild(removeBtn);
+  }
 
   addResizeHandles(taskEl) {
     const topHandle = document.createElement("div");
@@ -554,7 +661,6 @@ class WeekDisplay extends HTMLElement {
         taskObj.endTime = initialEndTime + (heightChange / slotHeight) * 60;
       }
       taskEl.style.height = `${newHeight}px`;
-      taskObj.duration = newHeight;
     };
 
     // Event listener for mouseup to stop resizing
@@ -706,7 +812,17 @@ class WeekDisplay extends HTMLElement {
           transform: scale(1);
         }
         .task:hover .resize-handle {
-          transform: scale(1); /* Scale up on hover */
+          transform: scale(1);
+        }
+        .task.dragging {
+          transform: scale(1.1);
+          opacity: 0.6;
+          transition: transform 0.2s ease, opacity 0.2s ease;
+          z-index: 1000;
+        }
+        .task.dragging .resize-handle,
+        .task.dragging .remove-btn {
+          display: none;
         }
         .resize-handle {
           position: absolute;
