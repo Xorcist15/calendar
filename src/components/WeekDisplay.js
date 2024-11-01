@@ -9,15 +9,35 @@ class WeekDisplay extends HTMLElement {
     this.isCreatingTask = false;
     this.currentDate = this.getMonday(new Date());
     // Add event listeners
-    this.shadowRoot.querySelector('.prev-week-btn').addEventListener('click', () => this.changeWeek(-1));
-    this.shadowRoot.querySelector('.today-btn').addEventListener('click', () => this.goToToday());
-    this.shadowRoot.querySelector('.next-week-btn').addEventListener('click', () => this.changeWeek(1));
+    this.shadowRoot.querySelector('.prev-week-btn').
+      addEventListener('click', () => this.changeWeek(-1));
+    this.shadowRoot.querySelector('.today-btn').
+      addEventListener('click', () => this.goToToday());
+    this.shadowRoot.querySelector('.next-week-btn').
+      addEventListener('click', () => this.changeWeek(1));
+    this.shadowRoot.querySelector('#dark-mode-toggle').
+      addEventListener('click', () => this.toggleDarkMode());
+  }
+
+  toggleDarkMode() {
+    console.log("hello world");
+    const calendar = this.shadowRoot.querySelector(".calendar");
+    const dayHeaders = this.shadowRoot.querySelectorAll(".day-header");
+    const timeHeaders = this.shadowRoot.querySelectorAll(".time-header");
+    const empty = this.shadowRoot.querySelector(".empty");
+
+
+
+    calendar.classList.toggle("dark-mode");
+    dayHeaders.forEach(dH => dH.classList.toggle("dark-mode"));
+    timeHeaders.forEach(tH => tH.classList.toggle("dark-mode"));
+    empty.classList.toggle("dark-mode");
   }
 
   getMonday(date) {
-    const day = date.getDay(); // Get current day (0-6, Sunday-Saturday)
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust if today is Sunday
-    return new Date(date.setDate(diff)); // Set the date to Monday
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(date.setDate(diff));
   }
 
   changeWeek(direction) {
@@ -72,6 +92,7 @@ class WeekDisplay extends HTMLElement {
         calendar.appendChild(timeSlot);
       }
     }
+
     // Get the month and year
     const options = { year: 'numeric', month: 'long' }; // Format options
     const formattedDate = this.currentDate.toLocaleDateString('en-US', options);
@@ -79,7 +100,6 @@ class WeekDisplay extends HTMLElement {
     monthYearDisplay.textContent = formattedDate;
 
   }
-
 
   // put numbers inside day-headers
   populateWeekDates() {
@@ -106,9 +126,6 @@ class WeekDisplay extends HTMLElement {
     });
   }
 
-
-
-
   // beautify numbers in day-headers
   beautifyNumbers(n) {
     const dateNumber = document.createElement("div");
@@ -116,6 +133,7 @@ class WeekDisplay extends HTMLElement {
     dateNumber.textContent = n;
     return dateNumber;
   }
+
   // Creates a new task based on click position on calendar
   createTask(e) {
     const { y, dayIndex } = this.calculatePosition(e, "create");
@@ -195,6 +213,7 @@ class WeekDisplay extends HTMLElement {
       const columns = [];
 
       group.forEach(task => {
+        console.log(task.title, task.startTime, task.endTime);
         // Find the first available column where this task doesn't collide
         let columnIndex = 0;
         while (columnIndex < columns.length && columns[columnIndex].some(t => isColliding(t, task))) {
@@ -410,160 +429,8 @@ class WeekDisplay extends HTMLElement {
   }
 
 
-
-  // showTaskForm(task, taskElement) {
-  //   if (this.isDragging) { return; }
-  //
-  //   // Create the overlay
-  //   const overlay = document.createElement('div');
-  //   overlay.className = 'overlay'; // Apply overlay class
-  //
-  //   // Create the form
-  //   const form = document.createElement('form');
-  //   form.className = 'form'; // Apply form class
-  //   form.innerHTML = `
-  //     <label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}"></label>
-  //     <label>Title: <input type="text" name="title" value="${task.title}"></label>
-  //     <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}"></label>
-  //     <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}"></label>
-  //     <div class="duration-display"></div>
-  //     <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
-  //     <button type="submit">Save</button>
-  //     <div class="error-message"></div>
-  //   `;
-  //
-  //   // Focus on the submit button
-  //   const submitButton = form.querySelector('button[type="submit"]');
-  //   submitButton.focus();
-  //
-  //   // Function to update time display and duration
-  //   const updateTimeDisplay = () => {
-  //     const startTimeInput = form.querySelector('input[name="startTime"]');
-  //     const endTimeInput = form.querySelector('input[name="endTime"]');
-  //     const durationDisplay = form.querySelector('.duration-display');
-  //
-  //     const startTime = this.convertTimeToMinutes(startTimeInput.value);
-  //     let endTime = this.convertTimeToMinutes(endTimeInput.value);
-  //
-  //     // If endTime is null or empty, set it to 1440 minutes (24:00)
-  //     if (!endTimeInput.value) {
-  //       endTime = 1440;
-  //       endTimeInput.value = this.convertMinutesToTime(endTime);
-  //     }
-  //
-  //     // Calculate duration
-  //     const duration = endTime - startTime;
-  //
-  //     // Update duration display
-  //     durationDisplay.textContent = duration > 0
-  //       ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
-  //       : 'Duration: 0 hours 0 minutes';
-  //   };
-  //
-  //   // Event listeners for input changes to update time display and duration
-  //   form.querySelector('input[name="startTime"]').addEventListener('input', updateTimeDisplay);
-  //   form.querySelector('input[name="endTime"]').addEventListener('input', updateTimeDisplay);
-  //
-  //   // Handle form submission
-  //   form.addEventListener('submit', (e) => {
-  //     e.preventDefault();
-  //
-  //     const formData = new FormData(form);
-  //     const date = formData.get('date'); // Get the date value
-  //     const title = formData.get('title');
-  //     const startTime = this.convertTimeToMinutes(formData.get('startTime'));
-  //     let endTime = this.convertTimeToMinutes(formData.get('endTime'));
-  //     const errorMessageElement = form.querySelector('.error-message');
-  //
-  //     // Clear previous error message
-  //     errorMessageElement.style.display = 'none';
-  //     errorMessageElement.textContent = '';
-  //
-  //     // If endTime is null or empty, set it to 1440 minutes (24:00)
-  //     if (!formData.get('endTime')) {
-  //       endTime = 1440;
-  //     }
-  //
-  //     // Validation checks
-  //     if (startTime < 0 || startTime > 1440) {
-  //       errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
-  //       errorMessageElement.style.display = 'block';
-  //       return;
-  //     }
-  //     if (endTime < 0 || endTime > 1440) {
-  //       errorMessageElement.textContent = 'End time must be between 00:00 and 24:00.';
-  //       errorMessageElement.style.display = 'block';
-  //       return;
-  //     }
-  //     if (endTime <= startTime) {
-  //       errorMessageElement.textContent = 'End time must be greater than start time.';
-  //       errorMessageElement.style.display = 'block';
-  //       return;
-  //     }
-  //
-  //     // Update task
-  //     task.title = title;
-  //     task.date = date; // Update date
-  //     task.description = formData.get('description');
-  //     task.startTime = startTime;
-  //     task.endTime = endTime;
-  //
-  //     // Render the task in the correct day
-  //     this.updateTaskElement(task, taskElement);
-  //
-  //     // Clean up
-  //     overlay.remove(); // Remove the overlay
-  //     this.renderTasks(); // Re-render tasks
-  //   });
-  //
-  //   // Close the form on Escape key press
-  //   const closeForm = (e) => {
-  //     if (e.key === 'Escape') {
-  //       overlay.remove(); // Remove the overlay
-  //       document.removeEventListener('keydown', closeForm); // Clean up the event listener
-  //     }
-  //   };
-  //
-  //   // Add event listener for Escape key
-  //   document.addEventListener('keydown', closeForm);
-  //
-  //   // Append the form to the overlay
-  //   overlay.appendChild(form);
-  //
-  //   // Append the overlay to the shadow root
-  //   this.shadowRoot.appendChild(overlay);
-  //
-  //   // Initial update of the time display and duration
-  //   updateTimeDisplay();
-  // }
-  //
-  // // Helper function to format the date to 'YYYY-MM-DD'
-  // formatDate(dateString) {
-  //   const date = new Date(dateString);
-  //   const year = date.getFullYear();
-  //   const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
-  //   const day = String(date.getDate()).padStart(2, '0');
-  //   return `${year}-${month}-${day}`;
-  // }
-  //
-  // // Update task element position and height in the calendar
-  // updateTaskElement(task, taskElement) {
-  //   const calendar = this.shadowRoot.querySelector(".calendar");
-  //   const calendarHeight = calendar.clientHeight;
-  //   const totalMinutesDay = 1440;
-  //
-  //   // Calculate the position based on the date and times
-  //   taskElement.textContent = task.title;
-  //   const taskDate = new Date(task.date);
-  //   const taskStartMinutes = (taskDate.getTime() / 60000) % totalMinutesDay + task.startTime; // Combine date with start time
-  //   const taskEndMinutes = (taskDate.getTime() / 60000) % totalMinutesDay + task.endTime;
-  //
-  //   taskElement.style.top = `${(taskStartMinutes / totalMinutesDay) * calendarHeight}px`;
-  //   taskElement.style.height = `${((taskEndMinutes - taskStartMinutes) / totalMinutesDay) * calendarHeight}px`;
-  // }
-
-
   showTaskForm(task, taskElement) {
+    console.log(task);
     if (this.isDragging) { return; }
 
     // Create the overlay
@@ -636,7 +503,6 @@ class WeekDisplay extends HTMLElement {
       task.startTime = currentStartDateTime.getHours() * 60 + currentStartDateTime.getMinutes();
       task.endTime = currentEndDateTime.getHours() * 60 + currentEndDateTime.getMinutes();
 
-
       // Update the display of the times in the form
       form.querySelector('input[name="startTime"]').value = this.convertMinutesToTime(task.startTime);
       form.querySelector('input[name="endTime"]').value = this.convertMinutesToTime(task.endTime);
@@ -684,11 +550,14 @@ class WeekDisplay extends HTMLElement {
 
       // Update task
       task.title = title;
-      task.date = date; // Update date
+      task.date = new Date(date);
       task.description = formData.get('description');
+      task.startTime = startTime;
+      task.endTime = endTime;
 
       // Render the task in the correct day
-      this.updateTaskElement(task, taskElement);
+      // this.updateTaskElement(task, taskElement);
+      console.log(startTime, endTime);
 
       // Clean up
       overlay.remove(); // Remove the overlay
@@ -723,22 +592,6 @@ class WeekDisplay extends HTMLElement {
     const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  }
-
-  // Update task element position and height in the calendar
-  updateTaskElement(task, taskElement) {
-    const calendar = this.shadowRoot.querySelector(".calendar");
-    const calendarHeight = calendar.clientHeight;
-    const totalMinutesDay = 1440;
-
-    // Calculate the position based on the date and times
-    taskElement.textContent = task.title;
-    const taskDate = new Date(task.date);
-    const taskStartMinutes = (taskDate.getTime() / 60000) % totalMinutesDay + task.startTime; // Combine date with start time
-    const taskEndMinutes = (taskDate.getTime() / 60000) % totalMinutesDay + task.endTime;
-
-    taskElement.style.top = `${(taskStartMinutes / totalMinutesDay) * calendarHeight}px`;
-    taskElement.style.height = `${((taskEndMinutes - taskStartMinutes) / totalMinutesDay) * calendarHeight}px`;
   }
 
   // Helper method to convert minutes to time format (HH:MM)
@@ -1037,350 +890,433 @@ class WeekDisplay extends HTMLElement {
 
   getTemplate() {
     return `
-  <style>
-    :host {
-      display: block;
-      width: 100%;
-      height: 100%;
-      box-sizing: border-box;
-      overflow: hidden;
-      margin: 0;
-      padding: 0;
-      --time-slot-width: calc(100% / 7);
-      --task-width: 10px;
+      <style>
+        :host {
+          display: block;
+          width: 100%;
+          height: 100%;
+          box-sizing: border-box;
+          overflow: hidden;
+          margin: 0;
+          padding: 0;
+          --time-slot-width: calc(100% / 7);
+          --task-width: 10px;
+        }
+        * {
+          box-sizing: border-box;
+        }
+        .container {
+          width: 100%;
+          height: 100%;
+          overflow: auto;
+          border-radius: 8px;
+          overflow-x: hidden;
+        }
+    
+        .container-time-label {
+        display: grid;
+          grid-template-columns: 50px calc(100% - 50px);
+          max-height: 80vh; /* Set your desired maximum height */
+          overflow-y: auto; /* Enable vertical scrolling */
+          overflow-x: hidden; /* Prevent horizontal scrolling */
+        }
+    
+        .calendar {
+          display: grid;
+          grid-template-columns: repeat(7, var(--time-slot-width));
+          grid-template-rows: repeat(24, 1fr);
+          position: relative;
+          background-color: #ffffff;
+        }
+        .calendar.dark-mode {
+          background-color: #121212;
+        }
+        .time-label-col {}
+        .header-row {
+          display: grid;
+          grid-template-columns: 50px repeat(7, 1fr);
+        }
+        .day-header,
+        .time-header {
+          background-color: #4a90e2;
+          color: #ffffff;
+          z-index: 1;
+          border-bottom: 1px solid #e0e0e0;
+          margin-bottom: -1px;
+          border-right: 1px solid #e0e0e0;
+          margin-right: -1px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          border-radius: 2px;
+        }
+        .day-header.dark-mode,
+        .time-header.dark-mode {
+          background-color: Yellow;
+          color: Red;
+        }
+        .day-header {
+          font-size: 16px;
+          font-weight: bold;
+          height: 50px;
+        }
+        .day-header .day-number {
+          color: #ffffff;
+          border-radius: 40%;
+          padding: 2px 2px;
+          margin-bottom: 2px;
+        }
+        .empty {
+          background-color: #99ccff;
+        }
+        .empty.dark-mode {
+          background-color: Black;
+        }
+        .time-header {
+          font-size: 12px;
+          height: 50px; 
+        } 
+        .time-slot {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-bottom: 1px solid #e0e0e0;
+          margin-bottom: -1px;
+          border-right: 1px solid #e0e0e0;
+          margin-right: -1px;
+          height: 40px;
+          position: relative;
+        }
+        .task {
+          position: absolute;
+          background-color: #FFDD57;
+          border-radius: 4px;
+          text-align: center;
+          z-index: 2;
+          width: var(--time-slot-width);
+          box-sizing: border-box; 
+          border: 1px solid #e0e0e0;
+          overflow: hidden; 
+          padding: 2px; 
+        }
+        .remove-btn {
+          position: absolute;
+          width: 18px;
+          height: 18px;
+          top: 5px;
+          right: 5px;
+          cursor: pointer;
+          padding: 2px;
+          background-color: #e63946;
+          color: #fff;
+          border-radius: 50%;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .remove-btn, .resize-handle {
+          transform: scale(0);
+          transition: transform 0.2s ease-in-out; 
+        }
+        .task:hover .resize-handle,
+        .task:hover .remove-btn {
+          transform: scale(1);
+        }
+        .task:hover{
+          cursor: grab;
+        }
+        .task.dragging {
+          transform: scale(1.1);
+          opacity: 0.6;
+          transition: transform 0.2s ease, opacity 0.2s ease;
+          z-index: 1000;
+          cursor: grabbing;
+        }
+        .task.dragging .resize-handle,
+        .task.dragging .remove-btn {
+          display: none;
+        }
+        .resize-handle {
+          position: absolute;
+          width: var(--task-width);
+          height: var(--task-width);
+          border-radius: 50%;
+          border: solid black;
+          background-color: black;
+        }
+        .resize-handle:hover {
+          cursor: ns-resize;
+        }
+        .top-handle {
+          top: calc(0% - ( var(--task-width) / 2));
+          left: calc(50% - (var(--task-width) / 2));
+        }
+        .bottom-handle {
+          top: calc(100% - (var(--task-width) / 2));
+          left: calc(50% - (var(--task-width)/ 2));
+        }
+        .task-time-container {
+          display: flex;
+          justify-content: space-between;
+          padding: 0 8px;
+          font-size: 12px;
+          color: #333;
+        }
+        .start-time {
+          font-weight: bold;
+          color: #4caf50;
+        }
+        .end-time {
+          font-weight: bold;
+          color: #f44336;
+        }
+    
+    .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
     }
-    * {
-      box-sizing: border-box;
+    
+    .form {
+        background: #fff;
+        padding: 20px;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
     }
-    .container {
-      width: 100%;
-      height: 100%;
-      overflow: auto;
+    
+    .form label {
+        display: flex;
+        flex-direction: column;
+        font-size: 14px;
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .form input[type="text"],
+    .form input[type="date"],
+    .form input[type="time"],
+    .form textarea {
+        font-size: 14px;
+        padding: 8px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .form textarea {
+        resize: vertical;
+        height: auto; /* Let it adjust based on content */
+    }
+    
+    .form button[type="submit"] {
+        padding: 10px 15px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 14px;
+        cursor: pointer;
+        align-self: flex-end;
+        transition: background-color 0.3s ease;
+    }
+    
+    .form button[type="submit"]:hover {
+        background-color: #0056b3;
+    }
+    
+    .form .error-message {
+        color: red;
+        font-size: 12px;
+        display: none; /* Initially hidden */
+    }
+    
+    .form .duration-display {
+        font-size: 12px;
+        color: #666;
+    }
+    
+    
+    
+    .navbar {
+      display: flex;
+      justify-content: space-between; /* Distribute space between items */
+      align-items: center;
+      background-color: #4a90e2; /* Navbar background color */
+      color: #ffffff; /* Text color */
+      padding: 10px;
       border-radius: 8px;
-      overflow-x: hidden;
+      margin-bottom: 10px;
     }
-
-    .container-time-label {
-    display: grid;
-      grid-template-columns: 50px calc(100% - 50px);
-      max-height: 80vh; /* Set your desired maximum height */
-      overflow-y: auto; /* Enable vertical scrolling */
-      overflow-x: hidden; /* Prevent horizontal scrolling */
+    
+    .navbar button {
+      background-color: #ffffff; /* Button background color */
+      color: #4a90e2; /* Button text color */
+      border: none; /* No border */
+      padding: 5px 10px; /* Padding for buttons */
+      border-radius: 4px; /* Rounded corners for buttons */
+      cursor: pointer; /* Pointer on hover */
+      font-size: 14px; /* Font size for buttons */
+      transition: background-color 0.3s ease; /* Smooth background change on hover */
     }
-
-    .calendar {
-      display: grid;
-      grid-template-columns: repeat(7, var(--time-slot-width));
-      grid-template-rows: repeat(24, 1fr);
+    
+    .navbar button:hover {
+      background-color: #e0e0e0; /* Button background on hover */
+    }
+    
+    .navbar .today-btn {
+      font-weight: bold; /* Bold styling for the Today button */
+    }
+    
+    .month-year-display {
+      margin: 0 15px; /* Horizontal margin to space out from buttons */
+      font-weight: bold; /* Bold text for emphasis */
+      font-size: 1.2em; /* Slightly larger font size */
+      color: #ffffff; /* Text color to match navbar */
+      text-align: center; /* Center the month/year display */
+      flex: 1; /* Allow it to grow and take available space */
+    }
+    
+    /* New styles to align buttons in the center */
+    .navbar {
+      justify-content: center; /* Center all items */
+    }
+    
+    .navbar .month-year-display {
+      margin: 0 30px; /* Increased margin for more space */
+    }
+    
+    /* Additional styles to ensure buttons are not pushed to the sides */
+    .navbar > button {
+      margin: 0 10px; /* Equal margin on buttons to space them out */
+    }
+    
+    .accentuated {
+        text-decoration: underline;
+        color: #e0e0e0; /* Example accent color (blue) */
+        font-weight: bold; /* Make the text bold */
+    }
+    
+    
+    /* toggle dark mode button */
+    /* The switch - the box around the slider */
+    .switch {
       position: relative;
-      background-color: #ffffff;
+      display: inline-block;
+      width: 40px;  /* Reduced width */
+      height: 20px; /* Reduced height */
+      margin-left: 10px;
     }
-    .time-label-col {}
-    .header-row {
-      display: grid;
-      grid-template-columns: 50px repeat(7, 1fr);
+    
+    /* Hide default HTML checkbox */
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
     }
-    .day-header,
-    .time-header {
-      background-color: #4a90e2;
-      color: #ffffff;
-      z-index: 1;
-      border-bottom: 1px solid #e0e0e0;
-      margin-bottom: -1px;
-      border-right: 1px solid #e0e0e0;
-      margin-right: -1px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      border-radius: 2px;
-    }
-    .day-header {
-      font-size: 16px;
-      font-weight: bold;
-      height: 50px;
-    }
-    .day-header .day-number {
-      color: #ffffff;
-      border-radius: 40%;
-      padding: 2px 2px;
-      margin-bottom: 2px;
-    }
-    .empty {
-      background-color: #99ccff;
-    }
-    .time-header {
-      font-size: 12px;
-      height: 50px; 
-    } 
-    .time-slot {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-bottom: 1px solid #e0e0e0;
-      margin-bottom: -1px;
-      border-right: 1px solid #e0e0e0;
-      margin-right: -1px;
-      height: 40px;
-      position: relative;
-    }
-    .task {
+    
+    /* The slider */
+    .slider {
       position: absolute;
-      background-color: #FFDD57;
-      border-radius: 4px;
-      text-align: center;
-      z-index: 2;
-      width: var(--time-slot-width);
-      box-sizing: border-box; 
-      border: 1px solid #e0e0e0;
-      overflow: hidden; 
-      padding: 2px; 
-    }
-    .remove-btn {
-      position: absolute;
-      width: 18px;
-      height: 18px;
-      top: 5px;
-      right: 5px;
       cursor: pointer;
-      padding: 2px;
-      background-color: #e63946;
-      color: #fff;
-      border-radius: 50%;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 20px; /* Adjusted border-radius */
     }
-    .remove-btn, .resize-handle {
-      transform: scale(0);
-      transition: transform 0.2s ease-in-out; 
-    }
-    .task:hover .resize-handle,
-    .task:hover .remove-btn {
-      transform: scale(1);
-    }
-    .task:hover{
-      cursor: grab;
-    }
-    .task.dragging {
-      transform: scale(1.1);
-      opacity: 0.6;
-      transition: transform 0.2s ease, opacity 0.2s ease;
-      z-index: 1000;
-      cursor: grabbing;
-    }
-    .task.dragging .resize-handle,
-    .task.dragging .remove-btn {
-      display: none;
-    }
-    .resize-handle {
+    
+    /* The circle inside the slider */
+    .slider:before {
       position: absolute;
-      width: var(--task-width);
-      height: var(--task-width);
+      content: "";
+      height: 16px;  /* Reduced height */
+      width: 16px;   /* Reduced width */
+      left: 2px;     /* Adjusted position */
+      bottom: 2px;   /* Adjusted position */
+      background-color: white;
+      transition: .4s;
       border-radius: 50%;
-      border: solid black;
-      background-color: black;
     }
-    .resize-handle:hover {
-      cursor: ns-resize;
+    
+    /* Checked */
+    input:checked + .slider {
+      background-color: #2196F3;
     }
-    .top-handle {
-      top: calc(0% - ( var(--task-width) / 2));
-      left: calc(50% - (var(--task-width) / 2));
+    
+    /* Move the circle inside the slider when checked */
+    input:checked + .slider:before {
+      transform: translateX(20px); /* Adjusted translation */
     }
-    .bottom-handle {
-      top: calc(100% - (var(--task-width) / 2));
-      left: calc(50% - (var(--task-width)/ 2));
+    
+    /* Dark mode styles */
+    body.dark-mode {
+      background-color: #121212;
+      color: #ffffff;
     }
-    .task-time-container {
-      display: flex;
-      justify-content: space-between;
-      padding: 0 8px;
-      font-size: 12px;
-      color: #333;
+    
+    .navbar.dark-mode {
+      background-color: #333333;
     }
-    .start-time {
-      font-weight: bold;
-      color: #4caf50;
+    
+    .button.dark-mode {
+      background-color: #444444;
+      color: #ffffff;
     }
-    .end-time {
-      font-weight: bold;
-      color: #f44336;
-    }
-
-.overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.form {
-    background: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    width: 90%;
-    max-width: 500px;
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.form label {
-    display: flex;
-    flex-direction: column;
-    font-size: 14px;
-    font-weight: bold;
-    color: #333;
-}
-
-.form input[type="text"],
-.form input[type="date"],
-.form input[type="time"],
-.form textarea {
-    font-size: 14px;
-    padding: 8px;
-    margin-top: 5px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.form textarea {
-    resize: vertical;
-    height: auto; /* Let it adjust based on content */
-}
-
-.form button[type="submit"] {
-    padding: 10px 15px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    font-size: 14px;
-    cursor: pointer;
-    align-self: flex-end;
-    transition: background-color 0.3s ease;
-}
-
-.form button[type="submit"]:hover {
-    background-color: #0056b3;
-}
-
-.form .error-message {
-    color: red;
-    font-size: 12px;
-    display: none; /* Initially hidden */
-}
-
-.form .duration-display {
-    font-size: 12px;
-    color: #666;
-}
-
-
-
-.navbar {
-  display: flex;
-  justify-content: space-between; /* Distribute space between items */
-  align-items: center;
-  background-color: #4a90e2; /* Navbar background color */
-  color: #ffffff; /* Text color */
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 10px;
-}
-
-.navbar button {
-  background-color: #ffffff; /* Button background color */
-  color: #4a90e2; /* Button text color */
-  border: none; /* No border */
-  padding: 5px 10px; /* Padding for buttons */
-  border-radius: 4px; /* Rounded corners for buttons */
-  cursor: pointer; /* Pointer on hover */
-  font-size: 14px; /* Font size for buttons */
-  transition: background-color 0.3s ease; /* Smooth background change on hover */
-}
-
-.navbar button:hover {
-  background-color: #e0e0e0; /* Button background on hover */
-}
-
-.navbar .today-btn {
-  font-weight: bold; /* Bold styling for the Today button */
-}
-
-.month-year-display {
-  margin: 0 15px; /* Horizontal margin to space out from buttons */
-  font-weight: bold; /* Bold text for emphasis */
-  font-size: 1.2em; /* Slightly larger font size */
-  color: #ffffff; /* Text color to match navbar */
-  text-align: center; /* Center the month/year display */
-  flex: 1; /* Allow it to grow and take available space */
-}
-
-/* New styles to align buttons in the center */
-.navbar {
-  justify-content: center; /* Center all items */
-}
-
-.navbar .month-year-display {
-  margin: 0 30px; /* Increased margin for more space */
-}
-
-/* Additional styles to ensure buttons are not pushed to the sides */
-.navbar > button {
-  margin: 0 10px; /* Equal margin on buttons to space them out */
-}
-
-.accentuated {
-    text-decoration: underline;
-    color: #e0e0e0; /* Example accent color (blue) */
-    font-weight: bold; /* Make the text bold */
-}
-
-
-
-
-  </style>
-
-  <div class="container">
-    <div class="navbar">
-      <button class="prev-week-btn">Previous Week</button>
-      <div class="month-year-display accentuated"></div> 
-      <button class="today-btn">Today</button>
-      <button class="next-week-btn">Next Week</button>
-    </div>
-
-
-    <div class="header-row">
-      <div class="empty"></div>
-      <div class="day-header accentuated">Mon</div>
-      <div class="day-header">Tue</div>
-      <div class="day-header">Wed</div>
-      <div class="day-header">Thu</div>
-      <div class="day-header">Fri</div>
-      <div class="day-header">Sat</div>
-      <div class="day-header">Sun</div>
-    </div>
-
-    <div class="container-time-label">
-      <div class="time-label-col"></div>
-      <div class="calendar"></div>
-    </div>
-  </div>
-`;
+    
+    
+      </style>
+    
+        <div class="navbar">
+          <button class="prev-week-btn">Previous Week</button>
+          <div class="month-year-display accentuated"></div> 
+          <button class="today-btn">Today</button>
+          <button class="next-week-btn">Next Week</button>
+          <label class="switch">
+            <input type="checkbox" id="dark-mode-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+    
+    
+    
+    
+        <div class="header-row">
+          <div class="empty"></div>
+          <div class="day-header accentuated">Mon</div>
+          <div class="day-header">Tue</div>
+          <div class="day-header">Wed</div>
+          <div class="day-header">Thu</div>
+          <div class="day-header">Fri</div>
+          <div class="day-header">Sat</div>
+          <div class="day-header">Sun</div>
+        </div>
+    
+        <div class="container-time-label">
+          <div class="time-label-col"></div>
+          <div class="calendar"></div>
+        </div>
+      </div>
+    `;
   }
 }
 
