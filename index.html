@@ -23,65 +23,13 @@
   <!-- defer scripts to load html first -->
   <script defer src="./src/components/Task.js"> </script>
   <script defer src="./src/components/WeekDisplay.js"> </script>
-  <script defer src="./src/scripts/main.js"> </script>
   <title>Calendar App</title>
 </head>
 
 <body>
-  <nav id="nav-bar-top">
-    <div class="nav-bar-element" id="nav-bar-part-one">
-
-      <div class="nav-bar-element" id="logo">
-        <!-- INSERT LOGO HERE -->
-        <!-- INSERT APP NAME HERE -->
-        <div>CalendarYS</div>
-      </div>
-
-      <div class="nav-bar-element" id="button-today">
-        <button type="button">Today</button>
-      </div>
-
-      <div class="nav-bar-element" id="button-previous">
-        <i class="fas fa-arrow-left"></i>
-      </div>
-
-      <div class="nav-bar-element" id="button-next">
-        <i class="fas fa-arrow-right"></i>
-      </div>
-
-      <div class="nav-bar-element" id="date-current">
-        4 September
-      </div>
-
-      <div class="nav-bar-element" id="date-week-number">
-        <span>Week xx</span>
-      </div>
-
-    </div>
-
-    <!-- part two of nav bar -->
-    <div class="nav-bar-element" id="nav-bar-part-two">
-
-      <div class="nav-bar-element" id="button-search">
-        <i class="fas fa-search"></i> <!-- Search Icon -->
-      </div>
-
-      <div class="nav-bar-element" id="button-help">
-        <i class="fas fa-question-circle"></i> <!-- Help Icon -->
-      </div>
-
-      <div class="nav-bar-element" id="button-settings">
-        <i class="fas fa-cog"></i> <!-- Settings Icon -->
-      </div>
-
-    </div>
-  </nav>
-
   <main>
-    <!-- display appear here -->
     <week-calendar></week-calendar>
   </main>
-
 </body>
 
 </html>

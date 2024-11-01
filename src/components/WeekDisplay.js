@@ -7,25 +7,63 @@ class WeekDisplay extends HTMLElement {
     this.tasks = [];
     this.isResizing = false;
     this.isCreatingTask = false;
+    this.currentDate = this.getMonday(new Date());
+    // Add event listeners
+    this.shadowRoot.querySelector('.prev-week-btn').addEventListener('click', () => this.changeWeek(-1));
+    this.shadowRoot.querySelector('.today-btn').addEventListener('click', () => this.goToToday());
+    this.shadowRoot.querySelector('.next-week-btn').addEventListener('click', () => this.changeWeek(1));
   }
+
+  getMonday(date) {
+    const day = date.getDay(); // Get current day (0-6, Sunday-Saturday)
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust if today is Sunday
+    return new Date(date.setDate(diff)); // Set the date to Monday
+  }
+
+  changeWeek(direction) {
+    this.currentDate.setDate(this.currentDate.getDate() + direction * 7);
+    this.updateCalendar();
+  }
+
+  goToToday() {
+    this.currentDate = new Date();
+    this.updateCalendar();
+  }
+
+  updateCalendar() {
+    this.renderTimeSlots();
+    this.populateWeekDates();
+    this.renderTasks();
+  }
+
   connectedCallback() {
     this.renderTimeSlots();
     this.addCalendarListener();
     this.createAndResizeTask();
     this.populateWeekDates();
   }
+
   // create calendar grid
   renderTimeSlots() {
     const calendar = this.shadowRoot.querySelector('.calendar');
     const timeLabelCol = this.shadowRoot.querySelector('.time-label-col');
 
+    // Clear existing time slots before populating new ones
+    const currentTimeSlots = calendar.querySelectorAll(".time-slot");
+    currentTimeSlots.forEach(cts => cts.remove());
+
+    // Clear existing time labels before adding new ones
+    const currentTimeLabels = timeLabelCol.querySelectorAll('.time-header');
+    currentTimeLabels.forEach(ctl => ctl.remove());
+
     for (let hour = 0; hour < 24; hour++) {
-      // time labels
+      // Create and add time labels
       const timeLabel = document.createElement('div');
       timeLabel.classList.add('time-slot', 'time-header');
       timeLabel.textContent = `${hour}:00`;
       timeLabelCol.appendChild(timeLabel);
-      // time slots 
+
+      // Create and add time slots for each day
       for (let day = 0; day < 7; day++) {
         const timeSlot = document.createElement('div');
         timeSlot.classList.add("time-slot");
@@ -34,25 +72,43 @@ class WeekDisplay extends HTMLElement {
         calendar.appendChild(timeSlot);
       }
     }
+    // Get the month and year
+    const options = { year: 'numeric', month: 'long' }; // Format options
+    const formattedDate = this.currentDate.toLocaleDateString('en-US', options);
+    const monthYearDisplay = this.shadowRoot.querySelector('.month-year-display');
+    monthYearDisplay.textContent = formattedDate;
+
   }
+
+
   // put numbers inside day-headers
   populateWeekDates() {
     const headerRow = this.shadowRoot.querySelector(".header-row");
     const dayHeaders = headerRow.querySelectorAll(".day-header");
-    // get current date
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    // find monday of the current week
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7)); // adj to monday
-    // populate each day header with the current date
+
+    // Find Monday of the current week based on this.currentDate
+    const dayOfWeek = this.currentDate.getDay();
+    const monday = new Date(this.currentDate);
+    monday.setDate(this.currentDate.getDate() - ((dayOfWeek + 6) % 7));
+
+    // Array of day names
+    const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    // Populate each day header with the current date and day name
     dayHeaders.forEach((dayHeader, index) => {
       const currentDay = new Date(monday);
-      currentDay.setDate(monday.getDate() + index); // loop over days
+      currentDay.setDate(monday.getDate() + index); // Loop over days
       const dayNumber = currentDay.getDate();
-      dayHeader.appendChild(this.beautifyNumbers(dayNumber));
+      const dayName = dayNames[index]; // Get the name of the day from the array
+
+      // Combine day name and date
+      dayHeader.textContent = `${dayName} ${dayNumber}`;
     });
   }
+
+
+
+
   // beautify numbers in day-headers
   beautifyNumbers(n) {
     const dateNumber = document.createElement("div");
@@ -93,13 +149,23 @@ class WeekDisplay extends HTMLElement {
     const slotHeight = this.shadowRoot.querySelector(".time-slot:not(.time-header)").clientHeight;
 
     // Sort tasks by dayPosition and startTime
-    this.tasks.sort((a, b) => a.dayPosition - b.dayPosition || a.startTime - b.startTime);
+    const startOfWeek = new Date(this.currentDate);
+    startOfWeek.setDate(this.currentDate.getDate() - this.currentDate.getDay() + 1); // Get the Monday of the current week
+
+    // Filter tasks that belong to the current week
+    const filteredTasks = this.tasks.filter(task => {
+      const taskDate = new Date(task.date);
+      return taskDate >= startOfWeek && taskDate < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000); // Next Monday
+    });
+
+    // Sort filtered tasks by dayPosition and startTime
+    filteredTasks.sort((a, b) => a.dayPosition - b.dayPosition || a.startTime - b.startTime);
 
     // Array to hold arrays of tasks that collide on the same day
     const collidingTasks = [];
 
     // Find colliding tasks
-    this.tasks.forEach(task => {
+    filteredTasks.forEach(task => {
       let collisionFound = false;
       for (let i = 0; i < collidingTasks.length; i++) {
         const group = collidingTasks[i];
@@ -149,7 +215,7 @@ class WeekDisplay extends HTMLElement {
 
         // Calculate task positions
         const left = (task.dayPosition * calWidth) / 7 + (columnIndex * calWidth) / (7 * columns.length);
-        const top = (task.startTime / 1440) * calHeight;
+        const top = Math.max(((task.startTime / 1440) * calHeight), 0);
         const width = calWidth / (7 * columns.length);
 
         taskEl.style.left = `${(left / calWidth) * 100}%`;
@@ -158,9 +224,9 @@ class WeekDisplay extends HTMLElement {
         const height = (task.duration / 60) * slotHeight;
         taskEl.style.height = `${height}px`;
 
-        // taskEl.textContent = `this is task`;
+        taskEl.textContent = task.title;
 
-        taskEl.addEventListener('mousedown', (e) => {
+        taskEl.addEventListener('click', (e) => {
           if (!e.target.classList.contains("resize-handle") &&
             !e.target.classList.contains("remove-btn")) {
             this.showTaskForm(task, taskEl);
@@ -174,74 +240,6 @@ class WeekDisplay extends HTMLElement {
         this.dragAndDrop(taskEl, task);
 
         calendar.appendChild(taskEl);
-
-        // const taskEl = document.createElement("div");
-        // taskEl.classList.add("task");
-        // taskEl.setAttribute("data-id", task.taskId);
-        //
-        // // Calculate task positions
-        // const left = (task.dayPosition * calWidth) / 7 + (columnIndex * calWidth) / (7 * columns.length);
-        // const top = (task.startTime / 1440) * calHeight;
-        // const width = calWidth / (7 * columns.length);
-        //
-        // taskEl.style.left = `${(left / calWidth) * 100}%`;
-        // taskEl.style.width = `${(width / calWidth) * 100}%`;
-        // taskEl.style.top = `${top}px`;
-        // const height = (task.duration / 60) * slotHeight;
-        // taskEl.style.height = `${height}px`;
-        //
-        // // Create task header
-        // const taskHeader = document.createElement("div");
-        // taskHeader.classList.add("task-header");
-        //
-        // // Create and append title
-        // const taskTitle = document.createElement("span");
-        // taskTitle.classList.add("task-title");
-        // taskTitle.textContent = task.title; // Use task's title
-        // taskHeader.appendChild(taskTitle);
-        //
-        // // Create and append times
-        // const taskTimes = document.createElement("div");
-        // taskTimes.classList.add("task-times");
-        //
-        // // Start time
-        // const taskStartTime = document.createElement("span");
-        // taskStartTime.classList.add("task-start-time");
-        // taskStartTime.textContent = `Start: ${this.formatTime(task.startTime)}`; // Format your time
-        // taskTimes.appendChild(taskStartTime);
-        //
-        // // End time
-        // const taskEndTime = document.createElement("span");
-        // taskEndTime.classList.add("task-end-time");
-        // taskEndTime.textContent = `End: ${this.formatTime(task.endTime)}`; // Format your time
-        // taskTimes.appendChild(taskEndTime);
-        //
-        // // Duration
-        // const taskDuration = document.createElement("span");
-        // taskDuration.classList.add("task-duration");
-        // taskDuration.textContent = `Duration: ${task.duration / 60} hour${task.duration / 60 > 1 ? 's' : ''}`; // Format duration
-        // taskTimes.appendChild(taskDuration);
-        //
-        // // Append times to header
-        // taskHeader.appendChild(taskTimes);
-        //
-        // // Append header to task element
-        // taskEl.appendChild(taskHeader);
-        //
-        // // Add resize handles and remove button
-        // this.addResizeHandles(taskEl);
-        // this.addRemoveButton(taskEl);
-        //
-        // // Event listener for showing task form
-        // taskEl.addEventListener('mousedown', (e) => {
-        //   if (!e.target.classList.contains("resize-handle") &&
-        //     !e.target.classList.contains("remove-btn")) {
-        //     this.showTaskForm(task, taskEl);
-        //   }
-        // });
-        //
-        // // Append task element to calendar
-        // calendar.appendChild(taskEl);
       });
     });
   }
@@ -347,8 +345,8 @@ class WeekDisplay extends HTMLElement {
         const dayOfWeek = today.getDay();
         const monday = new Date(today);
         monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
-        const taskDate = new Date(monday);
-        taskDate.setDate(monday.getDate() + dayIndex);
+        const taskDate = new Date(this.currentDate);
+        taskDate.setDate(this.currentDate.getDate() + dayIndex);
 
         const slotHeight = this.getSlotDimensions().height;
         const topProp = Math.round(y / slotHeight) * slotHeight;
@@ -356,7 +354,6 @@ class WeekDisplay extends HTMLElement {
         const startTime = Math.floor((topProp / calendar.clientHeight) * totalMinutesDay);
         const endTime = startTime + 60;
         const descrip = "this is task";
-        console.log(this.tasks);
         const taskId = Date.now() + Math.random();
 
         const task = new Task(taskId, taskDate, descrip, startTime, endTime);
@@ -387,6 +384,15 @@ class WeekDisplay extends HTMLElement {
         this.addRemoveButton(taskEl);
         this.addStartEndTimes(taskEl, task);
         this.dragAndDrop(taskEl, task);
+
+        taskEl.addEventListener('click', (e) => {
+          if (!e.target.classList.contains("resize-handle") &&
+            !e.target.classList.contains("remove-btn") &&
+            !taskEl.classList.contains('dragging')) {
+            this.showTaskForm(task, taskEl);
+          }
+        });
+
         calendar.appendChild(taskEl);
 
         currentTask = task;
@@ -403,115 +409,456 @@ class WeekDisplay extends HTMLElement {
     calendar.addEventListener('mousedown', onMouseDown);
   }
 
-  showTaskForm(task, taskElement) {
-    const form = document.createElement('form');
-    form.innerHTML = `
-      <label>Title: <input type="text" name="title" value="${task.title}"></label>
-      <label>Start Time: <input type="number" name="startTime" value="${task.startTime}"></label>
-      <label>End Time: <input type="number" name="endTime" value="${task.endTime}"></label>
-      <button type="submit">Save</button>
-    `;
-    form.style.position = 'absolute';
-    form.style.left = '50%';
-    form.style.top = '50%';
-    form.style.transform = 'translate(-50%, -50%)';
-    form.style.backgroundColor = 'white';
-    form.style.padding = '1rem';
-    form.style.border = '1px solid #ccc';
-    form.style.zIndex = 1000;
 
+
+  // showTaskForm(task, taskElement) {
+  //   if (this.isDragging) { return; }
+  //
+  //   // Create the overlay
+  //   const overlay = document.createElement('div');
+  //   overlay.className = 'overlay'; // Apply overlay class
+  //
+  //   // Create the form
+  //   const form = document.createElement('form');
+  //   form.className = 'form'; // Apply form class
+  //   form.innerHTML = `
+  //     <label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}"></label>
+  //     <label>Title: <input type="text" name="title" value="${task.title}"></label>
+  //     <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}"></label>
+  //     <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}"></label>
+  //     <div class="duration-display"></div>
+  //     <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
+  //     <button type="submit">Save</button>
+  //     <div class="error-message"></div>
+  //   `;
+  //
+  //   // Focus on the submit button
+  //   const submitButton = form.querySelector('button[type="submit"]');
+  //   submitButton.focus();
+  //
+  //   // Function to update time display and duration
+  //   const updateTimeDisplay = () => {
+  //     const startTimeInput = form.querySelector('input[name="startTime"]');
+  //     const endTimeInput = form.querySelector('input[name="endTime"]');
+  //     const durationDisplay = form.querySelector('.duration-display');
+  //
+  //     const startTime = this.convertTimeToMinutes(startTimeInput.value);
+  //     let endTime = this.convertTimeToMinutes(endTimeInput.value);
+  //
+  //     // If endTime is null or empty, set it to 1440 minutes (24:00)
+  //     if (!endTimeInput.value) {
+  //       endTime = 1440;
+  //       endTimeInput.value = this.convertMinutesToTime(endTime);
+  //     }
+  //
+  //     // Calculate duration
+  //     const duration = endTime - startTime;
+  //
+  //     // Update duration display
+  //     durationDisplay.textContent = duration > 0
+  //       ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
+  //       : 'Duration: 0 hours 0 minutes';
+  //   };
+  //
+  //   // Event listeners for input changes to update time display and duration
+  //   form.querySelector('input[name="startTime"]').addEventListener('input', updateTimeDisplay);
+  //   form.querySelector('input[name="endTime"]').addEventListener('input', updateTimeDisplay);
+  //
+  //   // Handle form submission
+  //   form.addEventListener('submit', (e) => {
+  //     e.preventDefault();
+  //
+  //     const formData = new FormData(form);
+  //     const date = formData.get('date'); // Get the date value
+  //     const title = formData.get('title');
+  //     const startTime = this.convertTimeToMinutes(formData.get('startTime'));
+  //     let endTime = this.convertTimeToMinutes(formData.get('endTime'));
+  //     const errorMessageElement = form.querySelector('.error-message');
+  //
+  //     // Clear previous error message
+  //     errorMessageElement.style.display = 'none';
+  //     errorMessageElement.textContent = '';
+  //
+  //     // If endTime is null or empty, set it to 1440 minutes (24:00)
+  //     if (!formData.get('endTime')) {
+  //       endTime = 1440;
+  //     }
+  //
+  //     // Validation checks
+  //     if (startTime < 0 || startTime > 1440) {
+  //       errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
+  //       errorMessageElement.style.display = 'block';
+  //       return;
+  //     }
+  //     if (endTime < 0 || endTime > 1440) {
+  //       errorMessageElement.textContent = 'End time must be between 00:00 and 24:00.';
+  //       errorMessageElement.style.display = 'block';
+  //       return;
+  //     }
+  //     if (endTime <= startTime) {
+  //       errorMessageElement.textContent = 'End time must be greater than start time.';
+  //       errorMessageElement.style.display = 'block';
+  //       return;
+  //     }
+  //
+  //     // Update task
+  //     task.title = title;
+  //     task.date = date; // Update date
+  //     task.description = formData.get('description');
+  //     task.startTime = startTime;
+  //     task.endTime = endTime;
+  //
+  //     // Render the task in the correct day
+  //     this.updateTaskElement(task, taskElement);
+  //
+  //     // Clean up
+  //     overlay.remove(); // Remove the overlay
+  //     this.renderTasks(); // Re-render tasks
+  //   });
+  //
+  //   // Close the form on Escape key press
+  //   const closeForm = (e) => {
+  //     if (e.key === 'Escape') {
+  //       overlay.remove(); // Remove the overlay
+  //       document.removeEventListener('keydown', closeForm); // Clean up the event listener
+  //     }
+  //   };
+  //
+  //   // Add event listener for Escape key
+  //   document.addEventListener('keydown', closeForm);
+  //
+  //   // Append the form to the overlay
+  //   overlay.appendChild(form);
+  //
+  //   // Append the overlay to the shadow root
+  //   this.shadowRoot.appendChild(overlay);
+  //
+  //   // Initial update of the time display and duration
+  //   updateTimeDisplay();
+  // }
+  //
+  // // Helper function to format the date to 'YYYY-MM-DD'
+  // formatDate(dateString) {
+  //   const date = new Date(dateString);
+  //   const year = date.getFullYear();
+  //   const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  //   const day = String(date.getDate()).padStart(2, '0');
+  //   return `${year}-${month}-${day}`;
+  // }
+  //
+  // // Update task element position and height in the calendar
+  // updateTaskElement(task, taskElement) {
+  //   const calendar = this.shadowRoot.querySelector(".calendar");
+  //   const calendarHeight = calendar.clientHeight;
+  //   const totalMinutesDay = 1440;
+  //
+  //   // Calculate the position based on the date and times
+  //   taskElement.textContent = task.title;
+  //   const taskDate = new Date(task.date);
+  //   const taskStartMinutes = (taskDate.getTime() / 60000) % totalMinutesDay + task.startTime; // Combine date with start time
+  //   const taskEndMinutes = (taskDate.getTime() / 60000) % totalMinutesDay + task.endTime;
+  //
+  //   taskElement.style.top = `${(taskStartMinutes / totalMinutesDay) * calendarHeight}px`;
+  //   taskElement.style.height = `${((taskEndMinutes - taskStartMinutes) / totalMinutesDay) * calendarHeight}px`;
+  // }
+
+
+  showTaskForm(task, taskElement) {
+    if (this.isDragging) { return; }
+
+    // Create the overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay'; // Apply overlay class
+
+    // Create the form
+    const form = document.createElement('form');
+    form.className = 'form'; // Apply form class
+    form.innerHTML = `
+      <label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}"></label>
+      <label>Title: <input type="text" name="title" value="${task.title}"></label>
+      <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}"></label>
+      <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}"></label>
+      <div class="duration-display"></div>
+      <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
+      <button type="submit">Save</button>
+      <div class="error-message"></div>
+    `;
+
+    // Focus on the submit button
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.focus();
+
+    // Function to update time display and duration
+    const updateTimeDisplay = () => {
+      const startTimeInput = form.querySelector('input[name="startTime"]');
+      const endTimeInput = form.querySelector('input[name="endTime"]');
+      const durationDisplay = form.querySelector('.duration-display');
+
+      const startTime = this.convertTimeToMinutes(startTimeInput.value);
+      let endTime = this.convertTimeToMinutes(endTimeInput.value);
+
+      // If endTime is null or empty, set it to 1440 minutes (24:00)
+      if (!endTimeInput.value) {
+        endTime = 1440;
+        endTimeInput.value = this.convertMinutesToTime(endTime);
+      }
+
+      // Calculate duration
+      const duration = endTime - startTime;
+
+      // Update duration display
+      durationDisplay.textContent = duration > 0
+        ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
+        : 'Duration: 0 hours 0 minutes';
+    };
+
+    // Event listeners for input changes to update time display and duration
+    form.querySelector('input[name="startTime"]').addEventListener('input', updateTimeDisplay);
+    form.querySelector('input[name="endTime"]').addEventListener('input', updateTimeDisplay);
+
+    // Handle date input change
+    const dateInput = form.querySelector('input[name="date"]');
+    dateInput.addEventListener('input', (event) => {
+      const selectedDate = new Date(event.target.value);
+      const currentStartTime = this.convertMinutesToTime(task.startTime);
+      const currentEndTime = this.convertMinutesToTime(task.endTime);
+
+      // Create new Date objects combining the selected date with the current start and end times
+      const currentStartDateTime = new Date(selectedDate);
+      currentStartDateTime.setHours(currentStartTime.split(':')[0]);
+      currentStartDateTime.setMinutes(currentStartTime.split(':')[1]);
+
+      const currentEndDateTime = new Date(selectedDate);
+      currentEndDateTime.setHours(currentEndTime.split(':')[0]);
+      currentEndDateTime.setMinutes(currentEndTime.split(':')[1]);
+
+      // Update task start time and end time correctly
+      task.startTime = currentStartDateTime.getHours() * 60 + currentStartDateTime.getMinutes();
+      task.endTime = currentEndDateTime.getHours() * 60 + currentEndDateTime.getMinutes();
+
+
+      // Update the display of the times in the form
+      form.querySelector('input[name="startTime"]').value = this.convertMinutesToTime(task.startTime);
+      form.querySelector('input[name="endTime"]').value = this.convertMinutesToTime(task.endTime);
+
+      updateTimeDisplay(); // Update duration display after changing the date
+    });
+
+
+    // Handle form submission
     form.addEventListener('submit', (e) => {
       e.preventDefault();
 
       const formData = new FormData(form);
-      task.title = formData.get('title');
-      task.startTime = parseInt(formData.get('startTime'));
-      task.endTime = parseInt(formData.get('endTime'));
+      const date = formData.get('date'); // Get the date value
+      const title = formData.get('title');
+      const startTime = this.convertTimeToMinutes(formData.get('startTime'));
+      let endTime = this.convertTimeToMinutes(formData.get('endTime'));
+      const errorMessageElement = form.querySelector('.error-message');
 
-      taskElement.textContent = task.title;
-      const calendar = this.shadowRoot.querySelector(".calendar");
-      const calendarHeight = calendar.clientHeight;
-      const totalMinutesDay = 1440;
+      // Clear previous error message
+      errorMessageElement.style.display = 'none';
+      errorMessageElement.textContent = '';
 
-      taskElement.style.top = `${(task.startTime / totalMinutesDay) * calendarHeight}px`;
-      taskElement.style.height = `${((task.endTime - task.startTime) / totalMinutesDay) * calendarHeight}px`;
+      // If endTime is null or empty, set it to 1440 minutes (24:00)
+      if (!formData.get('endTime')) {
+        endTime = 1440;
+      }
 
-      document.body.removeChild(form);
-      this.renderTasks();
+      // Validation checks
+      if (startTime < 0 || startTime > 1440) {
+        errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
+        errorMessageElement.style.display = 'block';
+        return;
+      }
+      if (endTime < 0 || endTime > 1440) {
+        errorMessageElement.textContent = 'End time must be between 00:00 and 24:00.';
+        errorMessageElement.style.display = 'block';
+        return;
+      }
+      if (endTime <= startTime) {
+        errorMessageElement.textContent = 'End time must be greater than start time.';
+        errorMessageElement.style.display = 'block';
+        return;
+      }
+
+      // Update task
+      task.title = title;
+      task.date = date; // Update date
+      task.description = formData.get('description');
+
+      // Render the task in the correct day
+      this.updateTaskElement(task, taskElement);
+
+      // Clean up
+      overlay.remove(); // Remove the overlay
+      this.renderTasks(); // Re-render tasks
     });
 
-    document.body.appendChild(form);
+    // Close the form on Escape key press
+    const closeForm = (e) => {
+      if (e.key === 'Escape') {
+        overlay.remove(); // Remove the overlay
+        document.removeEventListener('keydown', closeForm); // Clean up the event listener
+      }
+    };
+
+    // Add event listener for Escape key
+    document.addEventListener('keydown', closeForm);
+
+    // Append the form to the overlay
+    overlay.appendChild(form);
+
+    // Append the overlay to the shadow root
+    this.shadowRoot.appendChild(overlay);
+
+    // Initial update of the time display and duration
+    updateTimeDisplay();
   }
 
+  // Helper function to format the date to 'YYYY-MM-DD'
+  formatDate(dateString) {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
+  // Update task element position and height in the calendar
+  updateTaskElement(task, taskElement) {
+    const calendar = this.shadowRoot.querySelector(".calendar");
+    const calendarHeight = calendar.clientHeight;
+    const totalMinutesDay = 1440;
+
+    // Calculate the position based on the date and times
+    taskElement.textContent = task.title;
+    const taskDate = new Date(task.date);
+    const taskStartMinutes = (taskDate.getTime() / 60000) % totalMinutesDay + task.startTime; // Combine date with start time
+    const taskEndMinutes = (taskDate.getTime() / 60000) % totalMinutesDay + task.endTime;
+
+    taskElement.style.top = `${(taskStartMinutes / totalMinutesDay) * calendarHeight}px`;
+    taskElement.style.height = `${((taskEndMinutes - taskStartMinutes) / totalMinutesDay) * calendarHeight}px`;
+  }
+
+  // Helper method to convert minutes to time format (HH:MM)
+  convertMinutesToTime(minutes) {
+    const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
+    const mins = String(minutes % 60).padStart(2, '0');
+    return `${hours}:${mins}`;
+  }
+
+  // Helper method to convert time format (HH:MM) to minutes
+  convertTimeToMinutes(time) {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
 
   dragAndDrop(taskEl, task) {
     const calendar = this.shadowRoot.querySelector(".calendar");
+    const dragThreshold = 5;
+    let startX, startY, offsetX, offsetY;
+    let isDragging = false;
+    let mouseDownTime;
 
     const onMouseMove = (e) => {
-      const { x, y } = this.calculatePosition(e, "drag");
-      // Use x to handle horizontal movement within the day column
-      taskEl.style.left = `${x - offsetX}px`; // Adjust left using x
-      // console.log(clampedDayIndex);
-      taskEl.style.top = `${y - offsetY}px`; // Update vertical position
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
 
-      // Optionally add a class for visual feedback during dragging
-      taskEl.classList.add('dragging');
+      if (!isDragging && (Math.abs(dx) > dragThreshold || Math.abs(dy) > dragThreshold)) {
+        isDragging = true;
+        taskEl.classList.add('dragging');
+      }
+
+      if (isDragging) {
+        const { x, y } = this.calculatePosition(e, "drag");
+        taskEl.style.left = `${x - offsetX}px`;
+        taskEl.style.top = `${y - offsetY}px`;
+      }
     };
 
     const onMouseUp = (e) => {
-      // Get the task element's current position
-      const rect = taskEl.getBoundingClientRect();
-      const taskTop = rect.top - calendar.getBoundingClientRect().top;
+      const mouseUpTime = Date.now();
+      const clickDuration = mouseUpTime - mouseDownTime;
 
-      // Calculate new start time based on the task's top position
-      let startTime = Math.floor((taskTop / calendar.clientHeight) * 1440);
+      if (clickDuration < 200) { // If the mouse was down for less than 200ms, consider it a click
+        // Handle click event (open showTaskForm or whatever you need)
+      } else if (isDragging) {
+        const rect = taskEl.getBoundingClientRect();
+        const calendarRect = calendar.getBoundingClientRect();
 
-      // Round to the nearest quarter hour (15 minutes)
-      startTime = Math.round(startTime / 15) * 15;
+        // Ensure the task is within the bounds of the calendar
+        if (rect.top < calendarRect.top) {
+          taskEl.style.top = `0px`;
+        }
 
-      // Calculate the day column from the mouse X position
-      const calendarRect = calendar.getBoundingClientRect();
-      const dayWidth = calendar.clientWidth / 7; // Assuming a 7-day calendar
-      const dayIndex = Math.floor((e.clientX - calendarRect.left) / dayWidth); // Determine which day was clicked
+        if (rect.left < calendarRect.left) {
+          taskEl.style.left = '0px';
+        } else if (rect.right > calendarRect.right) {
+          taskEl.style.left = `${calendar.clientWidth - taskEl.offsetWidth}px`;
+        }
 
-      // Calculate the end time based on the task duration
-      const endTime = startTime + task.duration;
+        // Calculate the correct top property relative to the calendar
+        let taskTop = taskEl.getBoundingClientRect().top - calendarRect.top;
+        let startTime = Math.max(Math.floor((taskTop / calendar.clientHeight) * 1440, 0));
+        startTime = Math.round(startTime / 15) * 15;
 
-      // Update the task's date and times
-      const monday = new Date(this.getMonday());
-      const newDate = new Date(monday);
-      newDate.setDate(monday.getDate() + dayIndex); // Calculate new date based on dayIndex
+        // Ensure startTime is not negative
+        if (startTime < 0) {
+          startTime = 0;
+        }
 
-      task.date = newDate;
-      task.startTime = startTime;
-      task.endTime = endTime;
+        const dayWidth = calendar.clientWidth / 7;
+        const dayIndex = Math.floor((e.clientX - calendarRect.left) / dayWidth);
 
-      // Clean up event listeners
+        // Adjust startTime to ensure the task's endTime is midnight if it exceeds the calendar's bottom
+        let endTime = startTime + task.duration;
+        if (endTime > 1440) { // 1440 minutes = 24 hours
+          endTime = 1440;
+          startTime = endTime - task.duration;
+        }
+
+        const monday = new Date(this.getMonday());
+        const newDate = new Date(monday);
+        newDate.setDate(monday.getDate() + dayIndex);
+
+        task.date = newDate;
+        task.startTime = startTime;
+        task.endTime = endTime;
+
+        // Update taskEl's top position
+        taskTop = (startTime / 1440) * calendar.clientHeight;
+        taskEl.style.top = `${taskTop}px`;
+
+        this.renderTasks();
+      }
+
+      taskEl.classList.remove('dragging');
+      isDragging = false;
+
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-
-      // Re-render tasks to apply the changes
-      this.renderTasks();
     };
 
 
 
-    let offsetX, offsetY;
     const onMouseDown = (e) => {
-      // Get the bounding rectangle of the task element
+      startX = e.clientX;
+      startY = e.clientY;
+
       const taskRect = taskEl.getBoundingClientRect();
+      offsetX = e.clientX - taskRect.left;
+      offsetY = e.clientY - taskRect.top;
 
-      // Calculate the offset from the mouse position to the task element
-      offsetX = e.clientX - taskRect.left; // Horizontal offset
-      offsetY = e.clientY - taskRect.top;  // Vertical offset
+      mouseDownTime = Date.now();
 
-      // Add mousemove and mouseup event listeners
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     };
+
     taskEl.addEventListener('mousedown', onMouseDown);
   }
+
 
   // Helper function to get the Monday of the current week
   getMonday() {
@@ -537,7 +884,7 @@ class WeekDisplay extends HTMLElement {
     x = slotIndex = e.clientX - rect.left; // Time row
 
     if (context === "resize") {
-      slotIndex = e.clientY - rect.top; // Time row
+      slotIndex = e.clientY - rect.top; // Time col 
       y = Math.floor(slotIndex / a) * a;
       if (y >= calendar.clientHeight) {
         y = calendar.clientHeight - 100;
@@ -548,7 +895,7 @@ class WeekDisplay extends HTMLElement {
       slotIndex = Math.floor((e.clientY - rect.top) / height);
       y = slotIndex * height;
     } else if (context === "drag") {
-      x = e.clientX - rect.left; // Time column 
+      x = e.clientX - rect.left; // Time col 
       y = e.clientY - rect.top; // Time row
     }
     return { x, y, dayIndex };
@@ -690,202 +1037,350 @@ class WeekDisplay extends HTMLElement {
 
   getTemplate() {
     return `
-      <style>
-        :host {
-          display: block;
-          width: 100%;
-          height: 100%;
-          box-sizing: border-box;
-          overflow: hidden;
-          margin: 0;
-          padding: 0;
-          --time-slot-width: calc(100% / 7);
-          --task-width: 10px;
-        }
-        * {
-          box-sizing: border-box;
-        }
-        .container {
-          width: 100%;
-          height: 100%;
-          overflow: auto;
-          background-color: #f9f9f9f9;
-          border-radius: 8px;
-        }
-        .container-time-label {
-          display: grid;
-          grid-template-columns: 50px calc(100% - 50px);
-        }
-        .calendar {
-          display: grid;
-          grid-template-columns: repeat(7, var(--time-slot-width));
-          grid-template-rows: repeat(24, 1fr);
-          position: relative;
-          background-color: #ffffff;
-        }
-        .time-label-col {}
-        .header-row {
-          display: grid;
-          grid-template-columns: 50px repeat(7, 1fr);
-        }
-        .day-header,
-        .time-header {
-          background-color: #4a90e2;
-          color: #ffffff;
-          z-index: 1;
-          border-bottom: 1px solid #e0e0e0;
-          margin-bottom: -1px;
-          border-right: 1px solid #e0e0e0;
-          margin-right: -1px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-          border-radius: 2px;
-        }
-        .day-header {
-          font-size: 16px;
-          font-weight: bold;
-          height: 50px;
-        }
-        .day-header .day-number {
-          color: #ffffff;
-          border-radius: 40%;
-          padding: 2px 2px;
-          margin-bottom: 2px;
-        }
-        .empty {
-          background-color: #99ccff;
-        }
-        .time-header {
-          font-size: 12px;
-          height: 50px; 
-        } 
-        .time-slot {
-          display: flex;
-          aligh-items: center;
-          justify-content: center;
-          border-bottom: 1px solid #e0e0e0;
-          margin-bottom: -1px;
-          border-right: 1px solid #e0e0e0;
-          margin-right: -1px;
-          height: 40px;
-          position: relative;
-        }
-        .task {
-          position: absolute;
-          background-color: #FFDD57;
-          border-radius: 4px;
-          position: absolute;
-          text-align: center;
-          z-index: 2;
-          width: var(--time-slot-width);
-          box-sizing: border-box; 
-          border: 1px solid #e0e0e0;
-          overflow: hidden; 
-          padding: 2px; 
-        }
-        .remove-btn {
-          position: absolute;
-          width: 18px;
-          height: 18px;
-          top: 5px;
-          right: 5px; /* Use right to make placement easier */
-          cursor: pointer;
-          padding: 2px;
-          background-color: #e63946; /* Contrasting color */
-          color: #fff;
-          border-radius: 50%;
-          font-size: 14px; /* Adjust font size */
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        .remove-btn, .resize-handle {
-          transform: scale(0);
-          transition: transform 0.2s ease-in-out; 
-        }
-        .task:hover .resize-handle,
-        .task:hover .remove-btn {
-          transform: scale(1);
-        }
-        .task:hover .resize-handle {
-          transform: scale(1);
-        }
-        .task.dragging {
-          transform: scale(1.1);
-          opacity: 0.6;
-          transition: transform 0.2s ease, opacity 0.2s ease;
-          z-index: 1000;
-        }
-        .task.dragging .resize-handle,
-        .task.dragging .remove-btn {
-          display: none;
-        }
-        .resize-handle {
-          position: absolute;
-          width: var(--task-width);
-          height: var(--task-width);
-          border-radius: 50%;
-          border: solid black;
-          background-color: black;
-        }
-        .resize-handle:hover {
-          cursor: ns-resize;
-        }
-        .top-handle {
-          top: calc(0% - ( var(--task-width) / 2));
-          left: calc(50% - (var(--task-width) / 2));
-        }
-        .bottom-handle {
-          top: calc(100% - (var(--task-width) / 2));
-          left: calc(50% - (var(--task-width)/ 2));
-        }
-        /* Container for start and end times */
-        .task-time-container {
-          display: flex;
-          justify-content: space-between;
-          padding: 0 8px;
-          font-size: 12px;
-          color: #333;
-        }
+  <style>
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      --time-slot-width: calc(100% / 7);
+      --task-width: 10px;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    .container {
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      border-radius: 8px;
+      overflow-x: hidden;
+    }
 
-        /* Start time styling */
-        .start-time {
-          font-weight: bold;
-          color: #4caf50;
-        }
+    .container-time-label {
+    display: grid;
+      grid-template-columns: 50px calc(100% - 50px);
+      max-height: 80vh; /* Set your desired maximum height */
+      overflow-y: auto; /* Enable vertical scrolling */
+      overflow-x: hidden; /* Prevent horizontal scrolling */
+    }
 
-        /* End time styling */
-        .end-time {
-          font-weight: bold;
-          color: #f44336;
-        }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, var(--time-slot-width));
+      grid-template-rows: repeat(24, 1fr);
+      position: relative;
+      background-color: #ffffff;
+    }
+    .time-label-col {}
+    .header-row {
+      display: grid;
+      grid-template-columns: 50px repeat(7, 1fr);
+    }
+    .day-header,
+    .time-header {
+      background-color: #4a90e2;
+      color: #ffffff;
+      z-index: 1;
+      border-bottom: 1px solid #e0e0e0;
+      margin-bottom: -1px;
+      border-right: 1px solid #e0e0e0;
+      margin-right: -1px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      border-radius: 2px;
+    }
+    .day-header {
+      font-size: 16px;
+      font-weight: bold;
+      height: 50px;
+    }
+    .day-header .day-number {
+      color: #ffffff;
+      border-radius: 40%;
+      padding: 2px 2px;
+      margin-bottom: 2px;
+    }
+    .empty {
+      background-color: #99ccff;
+    }
+    .time-header {
+      font-size: 12px;
+      height: 50px; 
+    } 
+    .time-slot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid #e0e0e0;
+      margin-bottom: -1px;
+      border-right: 1px solid #e0e0e0;
+      margin-right: -1px;
+      height: 40px;
+      position: relative;
+    }
+    .task {
+      position: absolute;
+      background-color: #FFDD57;
+      border-radius: 4px;
+      text-align: center;
+      z-index: 2;
+      width: var(--time-slot-width);
+      box-sizing: border-box; 
+      border: 1px solid #e0e0e0;
+      overflow: hidden; 
+      padding: 2px; 
+    }
+    .remove-btn {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      top: 5px;
+      right: 5px;
+      cursor: pointer;
+      padding: 2px;
+      background-color: #e63946;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    .remove-btn, .resize-handle {
+      transform: scale(0);
+      transition: transform 0.2s ease-in-out; 
+    }
+    .task:hover .resize-handle,
+    .task:hover .remove-btn {
+      transform: scale(1);
+    }
+    .task:hover{
+      cursor: grab;
+    }
+    .task.dragging {
+      transform: scale(1.1);
+      opacity: 0.6;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+      z-index: 1000;
+      cursor: grabbing;
+    }
+    .task.dragging .resize-handle,
+    .task.dragging .remove-btn {
+      display: none;
+    }
+    .resize-handle {
+      position: absolute;
+      width: var(--task-width);
+      height: var(--task-width);
+      border-radius: 50%;
+      border: solid black;
+      background-color: black;
+    }
+    .resize-handle:hover {
+      cursor: ns-resize;
+    }
+    .top-handle {
+      top: calc(0% - ( var(--task-width) / 2));
+      left: calc(50% - (var(--task-width) / 2));
+    }
+    .bottom-handle {
+      top: calc(100% - (var(--task-width) / 2));
+      left: calc(50% - (var(--task-width)/ 2));
+    }
+    .task-time-container {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 8px;
+      font-size: 12px;
+      color: #333;
+    }
+    .start-time {
+      font-weight: bold;
+      color: #4caf50;
+    }
+    .end-time {
+      font-weight: bold;
+      color: #f44336;
+    }
 
-      </style>
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
 
-      <div class="container">
+.form {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
 
-        <div class="header-row">
-          <div class="empty"></div>
-          <div class="day-header">mon</div>
-          <div class="day-header">Tue</div>
-          <div class="day-header">Wed</div>
-          <div class="day-header">Thu</div>
-          <div class="day-header">Fri</div>
-          <div class="day-header">Sat</div>
-          <div class="day-header">Sun</div>
-        </div>
+.form label {
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+}
 
-       <div class="container-time-label">
-          <div class="time-label-col"> </div>
-          <div class="calendar"> </div>
-       </div>
+.form input[type="text"],
+.form input[type="date"],
+.form input[type="time"],
+.form textarea {
+    font-size: 14px;
+    padding: 8px;
+    margin-top: 5px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    width: 100%;
+    box-sizing: border-box;
+}
 
-      </div>
-    `;
+.form textarea {
+    resize: vertical;
+    height: auto; /* Let it adjust based on content */
+}
+
+.form button[type="submit"] {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 14px;
+    cursor: pointer;
+    align-self: flex-end;
+    transition: background-color 0.3s ease;
+}
+
+.form button[type="submit"]:hover {
+    background-color: #0056b3;
+}
+
+.form .error-message {
+    color: red;
+    font-size: 12px;
+    display: none; /* Initially hidden */
+}
+
+.form .duration-display {
+    font-size: 12px;
+    color: #666;
+}
+
+
+
+.navbar {
+  display: flex;
+  justify-content: space-between; /* Distribute space between items */
+  align-items: center;
+  background-color: #4a90e2; /* Navbar background color */
+  color: #ffffff; /* Text color */
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.navbar button {
+  background-color: #ffffff; /* Button background color */
+  color: #4a90e2; /* Button text color */
+  border: none; /* No border */
+  padding: 5px 10px; /* Padding for buttons */
+  border-radius: 4px; /* Rounded corners for buttons */
+  cursor: pointer; /* Pointer on hover */
+  font-size: 14px; /* Font size for buttons */
+  transition: background-color 0.3s ease; /* Smooth background change on hover */
+}
+
+.navbar button:hover {
+  background-color: #e0e0e0; /* Button background on hover */
+}
+
+.navbar .today-btn {
+  font-weight: bold; /* Bold styling for the Today button */
+}
+
+.month-year-display {
+  margin: 0 15px; /* Horizontal margin to space out from buttons */
+  font-weight: bold; /* Bold text for emphasis */
+  font-size: 1.2em; /* Slightly larger font size */
+  color: #ffffff; /* Text color to match navbar */
+  text-align: center; /* Center the month/year display */
+  flex: 1; /* Allow it to grow and take available space */
+}
+
+/* New styles to align buttons in the center */
+.navbar {
+  justify-content: center; /* Center all items */
+}
+
+.navbar .month-year-display {
+  margin: 0 30px; /* Increased margin for more space */
+}
+
+/* Additional styles to ensure buttons are not pushed to the sides */
+.navbar > button {
+  margin: 0 10px; /* Equal margin on buttons to space them out */
+}
+
+.accentuated {
+    text-decoration: underline;
+    color: #e0e0e0; /* Example accent color (blue) */
+    font-weight: bold; /* Make the text bold */
+}
+
+
+
+
+  </style>
+
+  <div class="container">
+    <div class="navbar">
+      <button class="prev-week-btn">Previous Week</button>
+      <div class="month-year-display accentuated"></div> 
+      <button class="today-btn">Today</button>
+      <button class="next-week-btn">Next Week</button>
+    </div>
+
+
+    <div class="header-row">
+      <div class="empty"></div>
+      <div class="day-header accentuated">Mon</div>
+      <div class="day-header">Tue</div>
+      <div class="day-header">Wed</div>
+      <div class="day-header">Thu</div>
+      <div class="day-header">Fri</div>
+      <div class="day-header">Sat</div>
+      <div class="day-header">Sun</div>
+    </div>
+
+    <div class="container-time-label">
+      <div class="time-label-col"></div>
+      <div class="calendar"></div>
+    </div>
+  </div>
+`;
   }
 }
 

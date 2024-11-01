@@ -6,7 +6,7 @@ class Task {
     // time is stored in minutes 0 => 1440
     this._startTime = startTime;
     this._endTime = endTime;
-    this._description = null;
+    this._description = "";
   }
   get taskId() { return this._id; }
   set taskId(id) { this._id = id; }
