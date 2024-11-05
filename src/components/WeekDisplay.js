@@ -258,6 +258,13 @@ class WeekDisplay extends HTMLElement {
         time.textContent = `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
         taskEl.appendChild(time);
 
+        const description = document.createElement("div");
+        description.classList.add("description");
+        description.textContent = `${task.description}`;
+        description.textContent = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+`;
+        taskEl.appendChild(description);
+
         taskEl.addEventListener('click', (e) => {
           if (!e.target.classList.contains("resize-handle") &&
             !e.target.classList.contains("remove-btn")) {
@@ -595,6 +602,10 @@ class WeekDisplay extends HTMLElement {
     return hours * 60 + minutes;
   }
 
+
+
+
+
   dragAndDrop(taskEl, task) {
     const calendar = this.shadowRoot.querySelector(".calendar");
     const dragThreshold = 5;
@@ -623,6 +634,7 @@ class WeekDisplay extends HTMLElement {
       const clickDuration = mouseUpTime - mouseDownTime;
 
       if (clickDuration < 50) {
+        // Short click - do nothing
       } else if (isDragging) {
         const rect = taskEl.getBoundingClientRect();
         const calendarRect = calendar.getBoundingClientRect();
@@ -630,20 +642,17 @@ class WeekDisplay extends HTMLElement {
         // Ensure the task is within the bounds of the calendar
         if (rect.top < calendarRect.top) {
           taskEl.style.top = `0px`;
-          console.log("top out of border");
         }
 
         if (rect.left < calendarRect.left || rect.left < 0) {
-          console.log(rect.left, calendarRect.left);
           taskEl.style.left = '0px';
-          console.log("left out of border");
         } else if (rect.right > calendarRect.right) {
           taskEl.style.left = `${calendar.clientWidth - taskEl.offsetWidth}px`;
         }
 
         // Calculate the correct top property relative to the calendar
         let taskTop = taskEl.getBoundingClientRect().top - calendarRect.top;
-        let startTime = Math.max(Math.floor((taskTop / calendar.clientHeight) * 1440, 0));
+        let startTime = Math.max(Math.floor((taskTop / calendar.clientHeight) * 1440), 0);
         startTime = Math.round(startTime / 15) * 15;
 
         // Ensure startTime is not negative
@@ -652,27 +661,30 @@ class WeekDisplay extends HTMLElement {
         }
 
         const dayWidth = calendar.clientWidth / 7;
-        console.log(e.clientX);
         let clientX = e.clientX;
-        if (e.clientX < 70) {
+
+        // Adjust clientX to prevent exceeding calendar boundaries
+        if (clientX < 70) {
           clientX = 70;
-        } else if (e.clientX > 1000) {
-          clientX = 1000;
+        } else if (clientX > calendar.clientWidth) {
+          clientX = calendar.clientWidth;
         }
 
+        // Calculate the index of the day based on the current week's Monday
         const dayIndex = Math.floor((clientX - calendarRect.left) / dayWidth);
 
-        // Adjust startTime to ensure the task's endTime is midnight if it exceeds the calendar's bottom
+        // Calculate the new date based on the current week's Monday
+        const newDate = new Date(this.currentDate);
+        newDate.setDate(this.currentDate.getDate() + dayIndex);
+
+        // Adjust startTime to ensure the task's endTime is within the day
         let endTime = startTime + task.duration;
         if (endTime > 1440) { // 1440 minutes = 24 hours
           endTime = 1440;
           startTime = endTime - task.duration;
         }
 
-        const monday = new Date(this.getMonday());
-        const newDate = new Date(monday);
-        newDate.setDate(monday.getDate() + dayIndex);
-
+        console.log(newDate);
         task.date = newDate;
         task.startTime = startTime;
         task.endTime = endTime;
@@ -691,8 +703,6 @@ class WeekDisplay extends HTMLElement {
       document.removeEventListener('mouseup', onMouseUp);
     };
 
-
-
     const onMouseDown = (e) => {
       startX = e.clientX;
       startY = e.clientY;
@@ -709,6 +719,129 @@ class WeekDisplay extends HTMLElement {
 
     taskEl.addEventListener('mousedown', onMouseDown);
   }
+
+
+
+
+
+
+
+
+
+  // dragAndDrop(taskEl, task) {
+  //   const calendar = this.shadowRoot.querySelector(".calendar");
+  //   const dragThreshold = 5;
+  //   let startX, startY, offsetX, offsetY;
+  //   let isDragging = false;
+  //   let mouseDownTime;
+  //
+  //   const onMouseMove = (e) => {
+  //     const dx = e.clientX - startX;
+  //     const dy = e.clientY - startY;
+  //
+  //     if (!isDragging && (Math.abs(dx) > dragThreshold || Math.abs(dy) > dragThreshold)) {
+  //       isDragging = true;
+  //       taskEl.classList.add('dragging');
+  //     }
+  //
+  //     if (isDragging) {
+  //       const { x, y } = this.calculatePosition(e, "drag");
+  //       taskEl.style.left = `${x - offsetX}px`;
+  //       taskEl.style.top = `${y - offsetY}px`;
+  //     }
+  //   };
+  //
+  //   const onMouseUp = (e) => {
+  //     const mouseUpTime = Date.now();
+  //     const clickDuration = mouseUpTime - mouseDownTime;
+  //
+  //     if (clickDuration < 50) {
+  //     } else if (isDragging) {
+  //       const rect = taskEl.getBoundingClientRect();
+  //       const calendarRect = calendar.getBoundingClientRect();
+  //
+  //       // Ensure the task is within the bounds of the calendar
+  //       if (rect.top < calendarRect.top) {
+  //         taskEl.style.top = `0px`;
+  //         console.log("top out of border");
+  //       }
+  //
+  //       if (rect.left < calendarRect.left || rect.left < 0) {
+  //         console.log(rect.left, calendarRect.left);
+  //         taskEl.style.left = '0px';
+  //         console.log("left out of border");
+  //       } else if (rect.right > calendarRect.right) {
+  //         taskEl.style.left = `${calendar.clientWidth - taskEl.offsetWidth}px`;
+  //       }
+  //
+  //       // Calculate the correct top property relative to the calendar
+  //       let taskTop = taskEl.getBoundingClientRect().top - calendarRect.top;
+  //       let startTime = Math.max(Math.floor((taskTop / calendar.clientHeight) * 1440, 0));
+  //       startTime = Math.round(startTime / 15) * 15;
+  //
+  //       // Ensure startTime is not negative
+  //       if (startTime < 0) {
+  //         startTime = 0;
+  //       }
+  //
+  //       const dayWidth = calendar.clientWidth / 7;
+  //       let clientX = e.clientX;
+  //       if (e.clientX < 70) {
+  //         clientX = 70;
+  //       } else if (e.clientX > calendar.clientWidth) {
+  //         clientX = calendar.clientWidth;
+  //       }
+  //
+  //       const dayIndex = Math.floor((clientX - calendarRect.left) / dayWidth);
+  //
+  //       // Adjust startTime to ensure the task's endTime is midnight if it exceeds the calendar's bottom
+  //       let endTime = startTime + task.duration;
+  //       if (endTime > 1440) { // 1440 minutes = 24 hours
+  //         endTime = 1440;
+  //         startTime = endTime - task.duration;
+  //       }
+  //
+  //       const monday = new Date(this.getMonday());
+  //       const newDate = new Date(monday);
+  //       newDate.setDate(monday.getDate() + dayIndex);
+  //
+  //       task.date = newDate;
+  //       task.startTime = startTime;
+  //       task.endTime = endTime;
+  //
+  //       // Update taskEl's top position
+  //       taskTop = (startTime / 1440) * calendar.clientHeight;
+  //       taskEl.style.top = `${taskTop}px`;
+  //       console.log(task.date);
+  //
+  //       this.renderTasks();
+  //     }
+  //
+  //     taskEl.classList.remove('dragging');
+  //     isDragging = false;
+  //
+  //     document.removeEventListener('mousemove', onMouseMove);
+  //     document.removeEventListener('mouseup', onMouseUp);
+  //   };
+  //
+  //
+  //
+  //   const onMouseDown = (e) => {
+  //     startX = e.clientX;
+  //     startY = e.clientY;
+  //
+  //     const taskRect = taskEl.getBoundingClientRect();
+  //     offsetX = e.clientX - taskRect.left;
+  //     offsetY = e.clientY - taskRect.top;
+  //
+  //     mouseDownTime = Date.now();
+  //
+  //     document.addEventListener('mousemove', onMouseMove);
+  //     document.addEventListener('mouseup', onMouseUp);
+  //   };
+  //
+  //   taskEl.addEventListener('mousedown', onMouseDown);
+  // }
 
 
   // Helper function to get the Monday of the current week
@@ -1041,7 +1174,6 @@ class WeekDisplay extends HTMLElement {
           left: calc(50% - (var(--task-width)/ 2));
         }
 
-
         .title {
           font-size: 12px; 
           left: 10px;
@@ -1055,6 +1187,16 @@ class WeekDisplay extends HTMLElement {
           top: 15px;
           color: #333; 
           text-align: left;
+        }
+
+        .description {
+          font-size: 10px; 
+          left: 10px;
+          top: 15px;
+          color: #333; 
+          text-align: left;
+          margin-top: 5px;
+          padding: 8px;
         }
 
     .overlay {
