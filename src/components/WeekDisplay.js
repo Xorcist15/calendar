@@ -20,13 +20,10 @@ class WeekDisplay extends HTMLElement {
   }
 
   toggleDarkMode() {
-    console.log("hello world");
     const calendar = this.shadowRoot.querySelector(".calendar");
     const dayHeaders = this.shadowRoot.querySelectorAll(".day-header");
     const timeHeaders = this.shadowRoot.querySelectorAll(".time-header");
     const empty = this.shadowRoot.querySelector(".empty");
-
-
 
     calendar.classList.toggle("dark-mode");
     dayHeaders.forEach(dH => dH.classList.toggle("dark-mode"));
@@ -150,33 +147,41 @@ class WeekDisplay extends HTMLElement {
     const totalMinutesDay = 1440;
     const startTime = Math.floor((topProp / calendar.clientHeight) * totalMinutesDay);
     const endTime = startTime + 60;
-    const descrip = "This a task";
+    const description = "(untitled task)";
     const taskId = Date.now() + Math.random();
 
-    const task = new Task(taskId, taskDate, descrip, startTime, endTime);
+    const task = new Task(taskId, taskDate, description, startTime, endTime);
     this.tasks.push(task);
     this.renderTasks();
     return task;
   }
+
+
 
   renderTasks() {
     const calendar = this.shadowRoot.querySelector(".calendar");
     const calWidth = calendar.clientWidth;
     const calHeight = calendar.clientHeight;
     calendar.querySelectorAll(".task").forEach(taskEl => taskEl.remove());
+
+    // Get the height of a single time slot
     const slotHeight = this.shadowRoot.querySelector(".time-slot:not(.time-header)").clientHeight;
 
-    // Sort tasks by dayPosition and startTime
+    // Calculate the start of the current week (Monday) and the end of the week (next Monday)
     const startOfWeek = new Date(this.currentDate);
-    startOfWeek.setDate(this.currentDate.getDate() - this.currentDate.getDay() + 1); // Get the Monday of the current week
+    startOfWeek.setDate(this.currentDate.getDate() - this.currentDate.getDay() + 1); // Set to Monday
+    startOfWeek.setHours(0, 0, 0, 0); // Clear time for accurate comparison
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7); // Set to next Monday
 
     // Filter tasks that belong to the current week
     const filteredTasks = this.tasks.filter(task => {
       const taskDate = new Date(task.date);
-      return taskDate >= startOfWeek && taskDate < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000); // Next Monday
+      return taskDate >= startOfWeek && taskDate < endOfWeek;
     });
 
-    // Sort filtered tasks by dayPosition and startTime
+    // Sort tasks by dayPosition and startTime
     filteredTasks.sort((a, b) => a.dayPosition - b.dayPosition || a.startTime - b.startTime);
 
     // Array to hold arrays of tasks that collide on the same day
@@ -213,7 +218,6 @@ class WeekDisplay extends HTMLElement {
       const columns = [];
 
       group.forEach(task => {
-        console.log(task.title, task.startTime, task.endTime);
         // Find the first available column where this task doesn't collide
         let columnIndex = 0;
         while (columnIndex < columns.length && columns[columnIndex].some(t => isColliding(t, task))) {
@@ -240,10 +244,19 @@ class WeekDisplay extends HTMLElement {
         taskEl.style.left = `${(left / calWidth) * 100}%`;
         taskEl.style.width = `${(width / calWidth) * 100}%`;
         taskEl.style.top = `${top}px`;
+
         const height = (task.duration / 60) * slotHeight;
         taskEl.style.height = `${height}px`;
 
-        taskEl.textContent = task.title;
+        const title = document.createElement("div");
+        title.classList.add('title');
+        title.textContent = task.title;
+        taskEl.appendChild(title);
+
+        const time = document.createElement("div");
+        time.classList.add("time");
+        time.textContent = `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
+        taskEl.appendChild(time);
 
         taskEl.addEventListener('click', (e) => {
           if (!e.target.classList.contains("resize-handle") &&
@@ -255,13 +268,13 @@ class WeekDisplay extends HTMLElement {
         // Add resize handles to the task element
         this.addResizeHandles(taskEl);
         this.addRemoveButton(taskEl);
-        this.addStartEndTimes(taskEl, task);
         this.dragAndDrop(taskEl, task);
 
         calendar.appendChild(taskEl);
       });
     });
   }
+
 
 
   addCalendarListener() {
@@ -366,16 +379,19 @@ class WeekDisplay extends HTMLElement {
         monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
         const taskDate = new Date(this.currentDate);
         taskDate.setDate(this.currentDate.getDate() + dayIndex);
+        // console.log(taskDate);
 
         const slotHeight = this.getSlotDimensions().height;
         const topProp = Math.round(y / slotHeight) * slotHeight;
         const totalMinutesDay = 1440;
         const startTime = Math.floor((topProp / calendar.clientHeight) * totalMinutesDay);
         const endTime = startTime + 60;
-        const descrip = "this is task";
         const taskId = Date.now() + Math.random();
+        const description = "(untitled task)";
 
-        const task = new Task(taskId, taskDate, descrip, startTime, endTime);
+
+        const task = new Task(taskId, taskDate, description, startTime, endTime);
+        // console.log(task);
         this.tasks.push(task);
 
         // Render task element
@@ -397,11 +413,18 @@ class WeekDisplay extends HTMLElement {
         const height = (endTime - startTime) / 60 * slotHeight;
         taskEl.style.height = `${height}px`;
 
-        taskEl.textContent = descrip;
+        const title = document.createElement("div");
+        title.classList.add('title');
+        title.textContent = task.title;
+        taskEl.appendChild(title);
+
+        const time = document.createElement("div");
+        time.classList.add("time");
+        time.textContent = `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
+        taskEl.appendChild(time);
 
         this.addResizeHandles(taskEl);
         this.addRemoveButton(taskEl);
-        this.addStartEndTimes(taskEl, task);
         this.dragAndDrop(taskEl, task);
 
         taskEl.addEventListener('click', (e) => {
@@ -429,8 +452,8 @@ class WeekDisplay extends HTMLElement {
   }
 
 
-  showTaskForm(task, taskElement) {
-    console.log(task);
+
+  showTaskForm(task) {
     if (this.isDragging) { return; }
 
     // Create the overlay
@@ -441,10 +464,10 @@ class WeekDisplay extends HTMLElement {
     const form = document.createElement('form');
     form.className = 'form'; // Apply form class
     form.innerHTML = `
-      <label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}"></label>
-      <label>Title: <input type="text" name="title" value="${task.title}"></label>
-      <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}"></label>
-      <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}"></label>
+      <label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
+      <label>Title: <input type="text" name="title" value="${task.title}" required></label>
+      <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
+      <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
       <div class="duration-display"></div>
       <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
       <button type="submit">Save</button>
@@ -455,7 +478,7 @@ class WeekDisplay extends HTMLElement {
     const submitButton = form.querySelector('button[type="submit"]');
     submitButton.focus();
 
-    // Function to update time display and duration
+    // Function to update the duration display
     const updateTimeDisplay = () => {
       const startTimeInput = form.querySelector('input[name="startTime"]');
       const endTimeInput = form.querySelector('input[name="endTime"]');
@@ -467,7 +490,6 @@ class WeekDisplay extends HTMLElement {
       // If endTime is null or empty, set it to 1440 minutes (24:00)
       if (!endTimeInput.value) {
         endTime = 1440;
-        endTimeInput.value = this.convertMinutesToTime(endTime);
       }
 
       // Calculate duration
@@ -479,44 +501,12 @@ class WeekDisplay extends HTMLElement {
         : 'Duration: 0 hours 0 minutes';
     };
 
-    // Event listeners for input changes to update time display and duration
-    form.querySelector('input[name="startTime"]').addEventListener('input', updateTimeDisplay);
-    form.querySelector('input[name="endTime"]').addEventListener('input', updateTimeDisplay);
-
-    // Handle date input change
-    const dateInput = form.querySelector('input[name="date"]');
-    dateInput.addEventListener('input', (event) => {
-      const selectedDate = new Date(event.target.value);
-      const currentStartTime = this.convertMinutesToTime(task.startTime);
-      const currentEndTime = this.convertMinutesToTime(task.endTime);
-
-      // Create new Date objects combining the selected date with the current start and end times
-      const currentStartDateTime = new Date(selectedDate);
-      currentStartDateTime.setHours(currentStartTime.split(':')[0]);
-      currentStartDateTime.setMinutes(currentStartTime.split(':')[1]);
-
-      const currentEndDateTime = new Date(selectedDate);
-      currentEndDateTime.setHours(currentEndTime.split(':')[0]);
-      currentEndDateTime.setMinutes(currentEndTime.split(':')[1]);
-
-      // Update task start time and end time correctly
-      task.startTime = currentStartDateTime.getHours() * 60 + currentStartDateTime.getMinutes();
-      task.endTime = currentEndDateTime.getHours() * 60 + currentEndDateTime.getMinutes();
-
-      // Update the display of the times in the form
-      form.querySelector('input[name="startTime"]').value = this.convertMinutesToTime(task.startTime);
-      form.querySelector('input[name="endTime"]').value = this.convertMinutesToTime(task.endTime);
-
-      updateTimeDisplay(); // Update duration display after changing the date
-    });
-
-
     // Handle form submission
     form.addEventListener('submit', (e) => {
       e.preventDefault();
 
       const formData = new FormData(form);
-      const date = formData.get('date'); // Get the date value
+      const date = formData.get('date');
       const title = formData.get('title');
       const startTime = this.convertTimeToMinutes(formData.get('startTime'));
       let endTime = this.convertTimeToMinutes(formData.get('endTime'));
@@ -526,12 +516,14 @@ class WeekDisplay extends HTMLElement {
       errorMessageElement.style.display = 'none';
       errorMessageElement.textContent = '';
 
-      // If endTime is null or empty, set it to 1440 minutes (24:00)
-      if (!formData.get('endTime')) {
-        endTime = 1440;
+      // Validation checks
+      const selectedDate = new Date(date);
+      if (isNaN(selectedDate.getTime())) {
+        errorMessageElement.textContent = 'Please select a valid date.';
+        errorMessageElement.style.display = 'block';
+        return;
       }
 
-      // Validation checks
       if (startTime < 0 || startTime > 1440) {
         errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
         errorMessageElement.style.display = 'block';
@@ -548,18 +540,13 @@ class WeekDisplay extends HTMLElement {
         return;
       }
 
-      // Update task
+      // Update task only if all validations pass
       task.title = title;
-      task.date = new Date(date);
+      task.date = selectedDate; // Use the selected date
       task.description = formData.get('description');
       task.startTime = startTime;
       task.endTime = endTime;
 
-      // Render the task in the correct day
-      // this.updateTaskElement(task, taskElement);
-      console.log(startTime, endTime);
-
-      // Clean up
       overlay.remove(); // Remove the overlay
       this.renderTasks(); // Re-render tasks
     });
@@ -604,6 +591,7 @@ class WeekDisplay extends HTMLElement {
   // Helper method to convert time format (HH:MM) to minutes
   convertTimeToMinutes(time) {
     const [hours, minutes] = time.split(':').map(Number);
+
     return hours * 60 + minutes;
   }
 
@@ -634,8 +622,7 @@ class WeekDisplay extends HTMLElement {
       const mouseUpTime = Date.now();
       const clickDuration = mouseUpTime - mouseDownTime;
 
-      if (clickDuration < 200) { // If the mouse was down for less than 200ms, consider it a click
-        // Handle click event (open showTaskForm or whatever you need)
+      if (clickDuration < 50) {
       } else if (isDragging) {
         const rect = taskEl.getBoundingClientRect();
         const calendarRect = calendar.getBoundingClientRect();
@@ -643,10 +630,13 @@ class WeekDisplay extends HTMLElement {
         // Ensure the task is within the bounds of the calendar
         if (rect.top < calendarRect.top) {
           taskEl.style.top = `0px`;
+          console.log("top out of border");
         }
 
-        if (rect.left < calendarRect.left) {
+        if (rect.left < calendarRect.left || rect.left < 0) {
+          console.log(rect.left, calendarRect.left);
           taskEl.style.left = '0px';
+          console.log("left out of border");
         } else if (rect.right > calendarRect.right) {
           taskEl.style.left = `${calendar.clientWidth - taskEl.offsetWidth}px`;
         }
@@ -662,7 +652,15 @@ class WeekDisplay extends HTMLElement {
         }
 
         const dayWidth = calendar.clientWidth / 7;
-        const dayIndex = Math.floor((e.clientX - calendarRect.left) / dayWidth);
+        console.log(e.clientX);
+        let clientX = e.clientX;
+        if (e.clientX < 70) {
+          clientX = 70;
+        } else if (e.clientX > 1000) {
+          clientX = 1000;
+        }
+
+        const dayIndex = Math.floor((clientX - calendarRect.left) / dayWidth);
 
         // Adjust startTime to ensure the task's endTime is midnight if it exceeds the calendar's bottom
         let endTime = startTime + task.duration;
@@ -759,23 +757,6 @@ class WeekDisplay extends HTMLElement {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-  }
-
-  addStartEndTimes(taskEl, task) {
-    const container = document.createElement("div");
-    const start = document.createElement("div");
-    const end = document.createElement("div");
-
-    start.textContent = this.formatTime(task.startTime);
-    end.textContent = this.formatTime(task.endTime);
-
-    end.classList.add("end-time");
-    start.classList.add("start-time");
-    container.classList.add("task-time-container");
-
-    container.appendChild(start);
-    container.appendChild(end);
-    taskEl.appendChild(container);
   }
 
   addRemoveButton(taskEl) {
@@ -1059,22 +1040,23 @@ class WeekDisplay extends HTMLElement {
           top: calc(100% - (var(--task-width) / 2));
           left: calc(50% - (var(--task-width)/ 2));
         }
-        .task-time-container {
-          display: flex;
-          justify-content: space-between;
-          padding: 0 8px;
-          font-size: 12px;
-          color: #333;
+
+
+        .title {
+          font-size: 12px; 
+          left: 10px;
+          color: #333; 
+          text-align: left;
         }
-        .start-time {
-          font-weight: bold;
-          color: #4caf50;
+
+        .time {
+          font-size: 10px; 
+          left: 10px;
+          top: 15px;
+          color: #333; 
+          text-align: left;
         }
-        .end-time {
-          font-weight: bold;
-          color: #f44336;
-        }
-    
+
     .overlay {
         position: fixed;
         top: 0;
@@ -1152,6 +1134,7 @@ class WeekDisplay extends HTMLElement {
         font-size: 12px;
         color: #666;
     }
+
     
     
     
@@ -1266,21 +1249,6 @@ class WeekDisplay extends HTMLElement {
     /* Move the circle inside the slider when checked */
     input:checked + .slider:before {
       transform: translateX(20px); /* Adjusted translation */
-    }
-    
-    /* Dark mode styles */
-    body.dark-mode {
-      background-color: #121212;
-      color: #ffffff;
-    }
-    
-    .navbar.dark-mode {
-      background-color: #333333;
-    }
-    
-    .button.dark-mode {
-      background-color: #444444;
-      color: #ffffff;
     }
     
     
