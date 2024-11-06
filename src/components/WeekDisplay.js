@@ -21,7 +21,6 @@ class WeekDisplay extends HTMLElement {
       addEventListener('click', () => this.showTaskList());
   }
 
-
   showTaskList() {
     let darkModeOn;
     if (this.isDarkModeOn()) darkModeOn = "dark-mode";
@@ -58,18 +57,18 @@ class WeekDisplay extends HTMLElement {
       this.tasks.forEach(task => {
         const taskItem = document.createElement('li');
         taskItem.classList.add('task-item', `${darkModeOn}`);
-
         const taskTitle = document.createElement('strong');
-        taskTitle.innerHTML = `<i class="fas fa-tasks"></i> ${task.title}`; // Added FontAwesome icon
-
+        taskTitle.innerHTML = `<i class="fas fa-tasks"></i> 
+          ${task.title}`;
         const taskDescription = document.createElement('p');
-        taskDescription.innerHTML = `<i class="fas fa-align-left"></i> ${task.description}`; // Added FontAwesome icon
-
+        taskDescription.innerHTML = `<i class="fas fa-align-left"></i> 
+          ${task.description}`;
         const taskDate = document.createElement('p');
-        taskDate.innerHTML = `<i class="fas fa-calendar-alt"></i> ${task.date.toLocaleDateString()}`; // Added FontAwesome icon
-
+        taskDate.innerHTML = `<i class="fas fa-calendar-alt"></i> 
+          ${task.date.toLocaleDateString()}`;
         const taskDuration = document.createElement('p');
-        taskDuration.innerHTML = `<i class="fas fa-hourglass-half"></i> ${task.duration} minutes`; // Added FontAwesome icon
+        taskDuration.innerHTML = `<i class="fas fa-hourglass-half"></i> 
+          ${this.convertMinutesToTime(task.duration)}`;
 
         taskItem.appendChild(taskTitle);
         if (task.description) taskItem.appendChild(taskDescription);
@@ -93,7 +92,7 @@ class WeekDisplay extends HTMLElement {
       `.container, .calendar, .day-header, .time-header, .empty, 
       .navbar, .header-row, .container-time-label, button, 
       .task, .remove-btn, .resize-handle, .title, .time, .description,
-      .task-list-modal, .task-list, .task-item, .close-btn`
+      .task-list-modal, .task-list, .task-item, .close-btn, .current-day`
     );
     elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
     this.renderTasks();
@@ -169,8 +168,7 @@ class WeekDisplay extends HTMLElement {
     monthYearDisplay.textContent = formattedDate;
   }
 
-  /**
-   * */
+
   populateWeekDates() {
     const headerRow = this.shadowRoot.querySelector(".header-row");
     const dayHeaders = headerRow.querySelectorAll(".day-header");
@@ -183,6 +181,10 @@ class WeekDisplay extends HTMLElement {
     // Array of day names
     const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+    // Get today's date for comparison
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time for accurate comparison
+
     // Populate each day header with the current date and day name
     dayHeaders.forEach((dayHeader, index) => {
       const currentDay = new Date(monday);
@@ -192,8 +194,19 @@ class WeekDisplay extends HTMLElement {
 
       // Combine day name and date
       dayHeader.textContent = `${dayName} ${dayNumber}`;
+
+      // Compare currentDay with today based on year, month, and day
+      if (currentDay.getFullYear() === today.getFullYear() &&
+        currentDay.getMonth() === today.getMonth() &&
+        currentDay.getDate() === today.getDate()) {
+        dayHeader.classList.add("current-day"); // Add special class for today
+      } else {
+        dayHeader.classList.remove("current-day"); // Remove the class if it's not today
+      }
     });
   }
+
+
 
   // beautify numbers in day-headers
   beautifyNumbers(n) {
@@ -814,6 +827,7 @@ class WeekDisplay extends HTMLElement {
     return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   }
 
+
   addRemoveButton(taskEl) {
     const removeBtn = document.createElement("div");
     let darkModeOn;
@@ -824,13 +838,41 @@ class WeekDisplay extends HTMLElement {
     removeBtn.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const taskId = taskEl.getAttribute("data-id");
-      this.tasks = this.tasks.filter(task => task.taskId != taskId);
-      this.renderTasks();
+
+      // Start the collapse animation
+      taskEl.classList.add("collapsing");
+
+      // Remove the task element after the animation completes
+      taskEl.addEventListener('transitionend', () => {
+        const taskId = taskEl.getAttribute("data-id");
+        this.tasks = this.tasks.filter(task => task.taskId != taskId);
+        this.renderTasks();
+      }, { once: true }); // 'once: true' ensures the event listener is removed after it's called
     });
 
     taskEl.appendChild(removeBtn);
   }
+
+
+
+
+  // addRemoveButton(taskEl) {
+  //   const removeBtn = document.createElement("div");
+  //   let darkModeOn;
+  //   if (this.isDarkModeOn()) darkModeOn = "dark-mode";
+  //   removeBtn.classList.add("remove-btn", `${darkModeOn}`);
+  //   removeBtn.textContent = "✕";
+  //
+  //   removeBtn.addEventListener("mousedown", (e) => {
+  //     e.preventDefault();
+  //     e.stopPropagation();
+  //     const taskId = taskEl.getAttribute("data-id");
+  //     this.tasks = this.tasks.filter(task => task.taskId != taskId);
+  //     this.renderTasks();
+  //   });
+  //
+  //   taskEl.appendChild(removeBtn);
+  // }
 
   addResizeHandles(taskEl) {
     const topHandle = document.createElement("div");
@@ -1010,6 +1052,12 @@ class WeekDisplay extends HTMLElement {
   margin-bottom: 2px;
 }
 
+.current-day {
+  background-color: #FFDD57; 
+  color: #000;
+}
+
+
 .empty {
   background-color: #99ccff;
 }
@@ -1079,6 +1127,16 @@ class WeekDisplay extends HTMLElement {
   transition: transform 0.2s ease, opacity 0.2s ease;
   z-index: 1000;
   cursor: grabbing;
+}
+
+.task {
+  transition: transform 0.5s ease-out, opacity 0.2s ease-out;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.task.collapsing {
+  opacity: 0;
 }
 
                               /* REMOVE BUTTON STYLES */
@@ -1378,6 +1436,17 @@ input:checked + .slider:before {
   background-color: #ff1a1a;
 }
 
+.no-tasks-msg {
+  background-color: #fff3cd; /* Soft yellow background */
+  color: #856404; /* Dark yellow text */
+  padding: 20px;
+  border: 1px solid #ffeeba; /* Light yellow border */
+  border-radius: 8px;
+  text-align: center; 
+  font-size: 18px;
+  margin: 20px 0;
+}
+
 /* Animation for modal appearance */
 @keyframes fadeIn {
   from {
@@ -1534,21 +1603,15 @@ button.accentuated.dark-mode {
   background-color: #ff1a1a;
 }
 
-.no-tasks-msg {
-  background-color: #fff3cd; /* Soft yellow background */
-  color: #856404; /* Dark yellow text */
-  padding: 20px;
-  border: 1px solid #ffeeba; /* Light yellow border */
-  border-radius: 8px;
-  text-align: center; 
-  font-size: 18px;
-  margin: 20px 0;
-}
-
 .no-tasks-msg.dark-mode {
   background-color: #2a2a2a;
   color: #e0e0e0;
   border: 1px solid #444; 
+}
+
+.current-day.dark-mode {
+  background-color: #6200ea;
+  color: #e0e0e0;
 }
 
 </style>
