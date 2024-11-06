@@ -17,6 +17,72 @@ class WeekDisplay extends HTMLElement {
       addEventListener('click', () => this.changeWeek(1));
     this.shadowRoot.querySelector('#dark-mode-toggle').
       addEventListener('click', () => this.toggleDarkMode());
+    this.shadowRoot.querySelector('.task-list-btn').
+      addEventListener('click', () => this.showTaskList());
+  }
+
+
+  showTaskList() {
+    let darkModeOn;
+    if (this.isDarkModeOn()) darkModeOn = "dark-mode";
+    const modal = document.createElement('div');
+    modal.classList.add('task-list-modal', `${darkModeOn}`);
+
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '<i class="fas fa-times"></i>';
+    closeButton.classList.add('close-btn', `${darkModeOn}`);
+    closeButton.addEventListener('click', () => {
+      modal.remove();
+      document.removeEventListener('keydown', handleEscapeKey);
+    });
+
+    const handleEscapeKey = (event) => {
+      if (event.key === 'Escape') {
+        modal.remove();
+        document.removeEventListener('keydown', handleEscapeKey);
+      }
+    };
+
+    // Add the keydown listener to close the modal when Escape is pressed
+    document.addEventListener('keydown', handleEscapeKey);
+
+    if (this.tasks.length === 0) {
+      const noTasksMessage = document.createElement('div');
+      noTasksMessage.classList.add("no-tasks-msg", `${darkModeOn}`);
+      noTasksMessage.textContent = "No tasks created to display :(";
+      modal.appendChild(noTasksMessage);
+    } else {
+      const taskList = document.createElement('ul');
+      taskList.classList.add('task-list', `${darkModeOn}`);
+
+      this.tasks.forEach(task => {
+        const taskItem = document.createElement('li');
+        taskItem.classList.add('task-item', `${darkModeOn}`);
+
+        const taskTitle = document.createElement('strong');
+        taskTitle.innerHTML = `<i class="fas fa-tasks"></i> ${task.title}`; // Added FontAwesome icon
+
+        const taskDescription = document.createElement('p');
+        taskDescription.innerHTML = `<i class="fas fa-align-left"></i> ${task.description}`; // Added FontAwesome icon
+
+        const taskDate = document.createElement('p');
+        taskDate.innerHTML = `<i class="fas fa-calendar-alt"></i> ${task.date.toLocaleDateString()}`; // Added FontAwesome icon
+
+        const taskDuration = document.createElement('p');
+        taskDuration.innerHTML = `<i class="fas fa-hourglass-half"></i> ${task.duration} minutes`; // Added FontAwesome icon
+
+        taskItem.appendChild(taskTitle);
+        if (task.description) taskItem.appendChild(taskDescription);
+        taskItem.appendChild(taskDate);
+        taskItem.appendChild(taskDuration);
+
+        taskList.appendChild(taskItem);
+      });
+      modal.appendChild(taskList);
+    }
+
+    modal.appendChild(closeButton);
+    this.shadowRoot.appendChild(modal);
   }
 
   /**
@@ -26,7 +92,8 @@ class WeekDisplay extends HTMLElement {
     const elementsToToggle = this.shadowRoot.querySelectorAll(
       `.container, .calendar, .day-header, .time-header, .empty, 
       .navbar, .header-row, .container-time-label, button, 
-      .task, .remove-btn, .resize-handle, .title, .time, .description`
+      .task, .remove-btn, .resize-handle, .title, .time, .description,
+      .task-list-modal, .task-list, .task-item, .close-btn`
     );
     elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
     this.renderTasks();
@@ -135,7 +202,6 @@ class WeekDisplay extends HTMLElement {
     dateNumber.textContent = n;
     return dateNumber;
   }
-
 
   renderTasks() {
     const calendar = this.shadowRoot.querySelector(".calendar");
@@ -263,8 +329,6 @@ class WeekDisplay extends HTMLElement {
       });
     });
   }
-
-
 
   addCalendarListener() {
     const calendar = this.shadowRoot.querySelector(".calendar");
@@ -442,8 +506,6 @@ class WeekDisplay extends HTMLElement {
     };
     calendar.addEventListener('mousedown', onMouseDown);
   }
-
-
 
   showTaskForm(task) {
     if (this.isDragging) { return; }
@@ -731,7 +793,7 @@ class WeekDisplay extends HTMLElement {
       slotIndex = e.clientY - rect.top; // Time col 
       y = Math.floor(slotIndex / a) * a;
       if (y >= calendar.clientHeight) {
-        y = calendar.clientHeight - 100;
+        y = calendar.clientHeight;
       } else if (y < 0) {
         y = 0;
       }
@@ -847,6 +909,8 @@ class WeekDisplay extends HTMLElement {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
 
+      if (taskObj.endTime > 1440) taskObj.endTime = 1440;
+
       this.renderTasks();
     };
 
@@ -869,6 +933,8 @@ class WeekDisplay extends HTMLElement {
 
   getTemplate() {
     return `
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
 :host {
   display: block;
@@ -1211,7 +1277,7 @@ font-weight: bold;
   font-weight: bold; 
 }
 
-                          /* DARK MODE SWITCH TOGGLE */
+                          /* DARK MODE TOGGLE SWITCH */
 .switch { 
   position: relative;
   display: inline-block;
@@ -1233,7 +1299,7 @@ font-weight: bold;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #ccc;
+  background-color: #FFDD57;
   transition: .4s;
   border-radius: 20px; 
 }
@@ -1251,11 +1317,77 @@ font-weight: bold;
 }
 
 input:checked + .slider {
-  background-color: #2196F3;
+  background-color: #6200ea !important;
 }
 
 input:checked + .slider:before {
   transform: translateX(20px);
+}
+
+          /*  MODAL D'AFFICHAGE DES TASKS */
+.task-list-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7); 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  backdrop-filter: blur(5px);
+}
+
+.task-list {
+  background-color: #ffffff; 
+  padding: 30px;
+  border-radius: 12px;
+  max-height: 80%;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  animation: fadeIn 0.3s ease;
+  list-style: none;
+}
+
+.task-item {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 10px;
+
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+.close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background-color: #ff4d4d;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.close-btn:hover {
+  background-color: #ff1a1a;
+}
+
+/* Animation for modal appearance */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
                             /* DARK MODE STYLES */
@@ -1363,14 +1495,71 @@ button.accentuated.dark-mode {
   margin-top: 10px;
 }
 
+.task-list-modal.dark-mode{
+  background-color: rgba(18, 18, 18, 0.9);
+}
+
+.task-list.dark-mode {
+  background-color: #1e1e1e;
+  padding: 30px;
+  border-radius: 12px; 
+  max-height: 80%;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); 
+}
+
+.task-item.dark-mode{
+  margin-bottom: 20px;
+  background-color: #2a2a2a; 
+  color: #e0e0e0;
+  padding: 10px;
+  border-radius: 6px; 
+}
+
+.task-item:last-child.dark-mode{
+  border-bottom: none;
+}
+
+.close-btn.dark-mode {
+  background-color: #ff4d4d; 
+  color: #ffffff;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.close-btn:hover.dark-mode {
+  background-color: #ff1a1a;
+}
+
+.no-tasks-msg {
+  background-color: #fff3cd; /* Soft yellow background */
+  color: #856404; /* Dark yellow text */
+  padding: 20px;
+  border: 1px solid #ffeeba; /* Light yellow border */
+  border-radius: 8px;
+  text-align: center; 
+  font-size: 18px;
+  margin: 20px 0;
+}
+
+.no-tasks-msg.dark-mode {
+  background-color: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #444; 
+}
 
 </style>
+
     
 <div class="container">
   <div class="navbar">
     <button class="prev-week-btn">Previous Week</button>
     <div class="month-year-display accentuated"></div> 
     <button class="today-btn">Today</button>
+    <button class="task-list-btn">Task List</button>
     <button class="next-week-btn">Next Week</button>
     <label class="switch">
       <input type="checkbox" id="dark-mode-toggle">
