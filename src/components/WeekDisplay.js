@@ -23,6 +23,18 @@ class WeekDisplay extends HTMLElement {
       addEventListener('click', () => this.toggleDarkMode());
     this.shadowRoot.querySelector('.task-list-btn').
       addEventListener('click', () => this.showTaskList());
+    
+
+    const handleEscapeKey = (event) => {
+      if (event.key === 'Escape') {
+        modal.remove();
+        document.removeEventListener('keydown', handleEscapeKey);
+      }
+    };
+
+    // Add the keydown listener to close the modal when Escape is pressed
+    document.addEventListener('keydown', handleEscapeKey);
+
   }
 
   showTaskList() {
@@ -1001,23 +1013,6 @@ class WeekDisplay extends HTMLElement {
   padding: 20px;
 }
 
-.container-time-label {
-  display: grid;
-  grid-template-columns: 50px calc(100% - 50px);
-  max-height: 80vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-                                      /* CALENDAR LAYOUT */
-.calendar {
-  display: grid;
-  grid-template-columns: repeat(7, var(--time-slot-width));
-  grid-template-rows: repeat(24, 1fr);
-  position: relative;
-  background-color: #ffffff;
-}
-
 .header-row {
   display: grid;
   grid-template-columns: 50px repeat(7, 1fr);
@@ -1058,6 +1053,23 @@ class WeekDisplay extends HTMLElement {
   color: #000;
 }
 
+.container-time-label {
+  display: grid;
+  grid-template-columns: 50px calc(100% - 50px);
+  max-height: 80vh;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+                                      /* CALENDAR LAYOUT */
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, var(--time-slot-width));
+  grid-template-rows: repeat(24, 1fr);
+  position: relative;
+  background-color: #ffffff;
+}
 
 .empty {
   background-color: #99ccff;

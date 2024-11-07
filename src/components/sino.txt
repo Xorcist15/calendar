@@ -1,0 +1,26 @@
+mode light
+    navbar           ; 
+    bouton navbar
+    day-headers
+    time label
+    task             ; couleurs pastel, prevoir de faire une liste de ag de couleurs.
+    background
+    grid
+    empty
+
+mode sombre
+    navbar
+    bouton navbar
+    day-headers
+    time label
+    task
+
+local storage
+different type of display for task list
+change font
+remove side bar scroller
+add settings button to change
+    - language
+    - display type in day headers
+
+add keyboard shortcuts to buttons
