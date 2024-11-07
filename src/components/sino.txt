@@ -18,9 +18,9 @@ mode sombre
 local storage
 different type of display for task list
 change font
-remove side bar scroller
 add settings button to change
     - language
     - display type in day headers
 
 add keyboard shortcuts to buttons
+add help button to show shortcuts 

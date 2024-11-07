@@ -23,18 +23,29 @@ class WeekDisplay extends HTMLElement {
       addEventListener('click', () => this.toggleDarkMode());
     this.shadowRoot.querySelector('.task-list-btn').
       addEventListener('click', () => this.showTaskList());
-    
 
-    const handleEscapeKey = (event) => {
-      if (event.key === 'Escape') {
-        modal.remove();
-        document.removeEventListener('keydown', handleEscapeKey);
+    // next week
+    const handleRightBtn = (event) => {
+      if (event.key === 'ArrowRight') {
+        this.changeWeek(1);
       }
     };
-
-    // Add the keydown listener to close the modal when Escape is pressed
-    document.addEventListener('keydown', handleEscapeKey);
-
+    document.addEventListener('keydown', handleRightBtn);
+    // last week
+    const handleLeftBtn = (event) => {
+      if (event.key === 'ArrowLeft') {
+        this.changeWeek(-1);
+      }
+    };
+    document.addEventListener('keydown', handleLeftBtn);
+    // this week
+    const handleDownBtn = (event) => {
+      if (event.key === 'ArrowDown') {
+        this.goToToday();
+      }
+    };
+    document.addEventListener('keydown', handleDownBtn);
+    
   }
 
   showTaskList() {
@@ -553,6 +564,7 @@ class WeekDisplay extends HTMLElement {
   <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
   <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
   <div class="duration-display"></div>
+  <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
   <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
   <button type="submit">Save</button>
   <div class="error-message"></div>
