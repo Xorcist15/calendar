@@ -8,7 +8,11 @@ class WeekDisplay extends HTMLElement {
     this.isResizing = false;
     this.isCreatingTask = false;
     this.currentDate = this.getMonday(new Date());
-    // Add event listeners
+    this.makeBtnsInteractive();
+  }
+
+  makeBtnsInteractive() {
+    // Add event listeners aux boutons
     this.shadowRoot.querySelector('.prev-week-btn').
       addEventListener('click', () => this.changeWeek(-1));
     this.shadowRoot.querySelector('.today-btn').
@@ -85,7 +89,7 @@ class WeekDisplay extends HTMLElement {
   }
 
   /**
-   * qui active mode sombre
+   * active mode sombre
    * */
   toggleDarkMode() {
     const elementsToToggle = this.shadowRoot.querySelectorAll(
@@ -107,7 +111,7 @@ class WeekDisplay extends HTMLElement {
     this.updateCalendar();
   }
   goToToday() {
-    this.currentDate = new Date();
+    this.currentDate = this.getMonday(new Date());
     this.updateCalendar();
   }
   updateCalendar() {
@@ -445,7 +449,6 @@ class WeekDisplay extends HTMLElement {
         monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
         const taskDate = new Date(this.currentDate);
         taskDate.setDate(this.currentDate.getDate() + dayIndex);
-        // console.log(taskDate);
 
         const slotHeight = this.getSlotDimensions().height;
         const topProp = Math.round(y / slotHeight) * slotHeight;
@@ -457,7 +460,6 @@ class WeekDisplay extends HTMLElement {
 
 
         const task = new Task(taskId, taskDate, description, startTime, endTime);
-        // console.log(task);
         this.tasks.push(task);
 
         let darkModeOn;
@@ -743,7 +745,6 @@ class WeekDisplay extends HTMLElement {
           startTime = endTime - task.duration;
         }
 
-        console.log(newDate);
         task.date = newDate;
         task.startTime = startTime;
         task.endTime = endTime;

@@ -8,6 +8,7 @@ class Task {
     this._endTime = endTime;
     this._description = "";
   }
+
   get taskId() { return this._id; }
   set taskId(id) { this._id = id; }
 
