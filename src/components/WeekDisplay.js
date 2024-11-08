@@ -8,10 +8,18 @@ class WeekDisplay extends HTMLElement {
     this.isResizing = false;
     this.isCreatingTask = false;
     this.currentDate = this.getMonday(new Date());
-    this.makeBtnsInteractive();
+    this.interactiveNavbar();
   }
 
-  makeBtnsInteractive() {
+  // Helper function to get the Monday of the current week
+  getMonday() {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
+    return new Date(today.setDate(diff));
+  }
+
+  interactiveNavbar() {
     // Add event listeners aux boutons
     this.shadowRoot.querySelector('.prev-week-btn').
       addEventListener('click', () => this.changeWeek(-1));
@@ -26,26 +34,21 @@ class WeekDisplay extends HTMLElement {
 
     // next week
     const handleRightBtn = (event) => {
-      if (event.key === 'ArrowRight') {
-        this.changeWeek(1);
-      }
+      if (event.key === 'ArrowRight') { this.changeWeek(1); }
     };
     document.addEventListener('keydown', handleRightBtn);
+
     // last week
     const handleLeftBtn = (event) => {
-      if (event.key === 'ArrowLeft') {
-        this.changeWeek(-1);
-      }
+      if (event.key === 'ArrowLeft') { this.changeWeek(-1); }
     };
     document.addEventListener('keydown', handleLeftBtn);
+
     // this week
     const handleDownBtn = (event) => {
-      if (event.key === 'ArrowDown') {
-        this.goToToday();
-      }
+      if (event.key === 'ArrowDown') { this.goToToday(); }
     };
     document.addEventListener('keydown', handleDownBtn);
-    
   }
 
   showTaskList() {
@@ -111,53 +114,6 @@ class WeekDisplay extends HTMLElement {
     this.shadowRoot.appendChild(modal);
   }
 
-  /**
-   * active mode sombre
-   * */
-  toggleDarkMode() {
-    const elementsToToggle = this.shadowRoot.querySelectorAll(
-      `.container, .calendar, .day-header, .time-header, .empty, 
-      .navbar, .header-row, .container-time-label, button, 
-      .task, .remove-btn, .resize-handle, .title, .time, .description,
-      .task-list-modal, .task-list, .task-item, .close-btn, .current-day`
-    );
-    elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
-    this.renderTasks();
-  }
-
-  /**
-   * permettre la navigation 
-   * */
-
-  changeWeek(direction) {
-    this.currentDate.setDate(this.currentDate.getDate() + direction * 7);
-    this.updateCalendar();
-  }
-  goToToday() {
-    this.currentDate = this.getMonday(new Date());
-    this.updateCalendar();
-  }
-  updateCalendar() {
-    this.renderTimeSlots();
-    this.populateWeekDates();
-    this.renderTasks();
-  }
-  connectedCallback() {
-    this.renderTimeSlots();
-    this.addCalendarListener();
-    this.createAndResizeTask();
-    this.populateWeekDates();
-  }
-
-  isDarkModeOn() {
-    const nav = this.shadowRoot.querySelector('.navbar');
-    if (nav.classList.contains("dark-mode")) return true;
-    else return false;
-  }
-
-  /**
-   * creer le grid du calendrier
-   * */
   renderTimeSlots() {
     const calendar = this.shadowRoot.querySelector('.calendar');
     const timeLabelCol = this.shadowRoot.querySelector('.time-label-col');
@@ -189,6 +145,93 @@ class WeekDisplay extends HTMLElement {
       }
     }
     // afficher mois milieu du nav bar
+    const options = { year: 'numeric', month: 'long' };
+    const formattedDate = this.currentDate.toLocaleDateString('en-US', options);
+    const monthYearDisplay = this.shadowRoot.querySelector('.month-year-display');
+    monthYearDisplay.textContent = formattedDate;
+  }
+
+  /*
+   * active mode sombre
+   * */
+  toggleDarkMode() {
+    const elementsToToggle = this.shadowRoot.querySelectorAll(
+      `.container, .calendar, .day-header, .time-header, .empty, 
+      .navbar, .header-row, .container-time-label, button, 
+      .task, .remove-btn, .resize-handle, .title, .time, .description,
+      .task-list-modal, .task-list, .task-item, .close-btn, .current-day`
+    );
+    elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
+    this.renderTasks();
+  }
+
+  /*
+   * permettent la navigation 
+   * */
+  changeWeek(direction) {
+    this.currentDate.setDate(this.currentDate.getDate() + direction * 7);
+    this.updateCalendar();
+  }
+  goToToday() {
+    this.currentDate = this.getMonday(new Date());
+    this.updateCalendar();
+  }
+  updateCalendar() {
+    this.renderTimeSlots();
+    this.populateWeekDates();
+    this.renderTasks();
+  }
+  connectedCallback() {
+    this.renderTimeSlots();
+    this.addCalendarListener();
+    this.createAndResizeTask();
+    this.populateWeekDates();
+    this.renderTasks();
+  }
+
+  /*
+   * teste si mode sombre est actif
+   * */
+  isDarkModeOn() {
+    const nav = this.shadowRoot.querySelector('.navbar');
+    if (nav.classList.contains("dark-mode")) return true;
+    else return false;
+  }
+
+  /*
+   * cree le grid du calendrier
+   * */
+  renderTimeSlots() {
+    const calendar = this.shadowRoot.querySelector('.calendar');
+    const timeLabelCol = this.shadowRoot.querySelector('.time-label-col');
+
+    const currentTimeSlots = calendar.querySelectorAll(".time-slot");
+    currentTimeSlots.forEach(cts => cts.remove());
+
+    const currentTimeLabels = timeLabelCol.querySelectorAll('.time-header');
+    currentTimeLabels.forEach(ctl => ctl.remove());
+
+    let darkModeOn;
+
+    if (this.isDarkModeOn()) {
+      darkModeOn = "dark-mode";
+    }
+
+    for (let hour = 0; hour < 24; hour++) {
+      const timeLabel = document.createElement('div');
+      timeLabel.classList.add('time-slot', 'time-header', `${darkModeOn}`);
+      timeLabel.textContent = `${hour}:00`;
+      timeLabelCol.appendChild(timeLabel);
+
+      for (let day = 0; day < 7; day++) {
+        const timeSlot = document.createElement('div');
+        timeSlot.classList.add("time-slot");
+        timeSlot.setAttribute('data-hour', hour);
+        timeSlot.setAttribute('data-day', day);
+        calendar.appendChild(timeSlot);
+      }
+    }
+    // afficher mois nav bar
     const options = { year: 'numeric', month: 'long' };
     const formattedDate = this.currentDate.toLocaleDateString('en-US', options);
     const monthYearDisplay = this.shadowRoot.querySelector('.month-year-display');
@@ -233,8 +276,6 @@ class WeekDisplay extends HTMLElement {
     });
   }
 
-
-
   // beautify numbers in day-headers
   beautifyNumbers(n) {
     const dateNumber = document.createElement("div");
@@ -260,8 +301,9 @@ class WeekDisplay extends HTMLElement {
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 7); // Set to next Monday
 
-    // Filter tasks that belong to the current week
-    const filteredTasks = this.tasks.filter(task => {
+    const localTasks = this.loadTasksFromLocalStorage();
+
+    const filteredTasks = localTasks.filter(task => {
       const taskDate = new Date(task.date);
       return taskDate >= startOfWeek && taskDate < endOfWeek;
     });
@@ -390,6 +432,20 @@ class WeekDisplay extends HTMLElement {
     });
   }
 
+  // load tasks from local storage
+  loadTasksFromLocalStorage() {
+    const storedJSON = JSON.parse(localStorage.getItem("tasks")) || [];
+    return storedJSON.map(obj =>
+      new Task(obj._id, new Date(obj._date), obj._title, obj._startTime, obj._endTime)
+    );
+  }
+
+  // save tasks to localStorage
+  saveTasksToLocalStorage() {
+
+    localStorage.setItem('tasks', JSON.stringify(this.tasks));  // Store tasks in localStorage as a JSON string
+  }
+
   createAndResizeTask() {
     const calendar = this.shadowRoot.querySelector(".calendar");
     let isDrawing = false;
@@ -404,38 +460,31 @@ class WeekDisplay extends HTMLElement {
       const minMinutes = 15;
       const minHeight = (minMinutes / totalMinutesDay) * calendar.offsetHeight;
 
-      // Calculate current mouse position relative to the calendar
       const currentY = this.calculatePosition(e, "resize").y;
-
-      // Calculate new height and top position for the task element
       let newHeight, newTop;
       if (currentY >= startY) {
-        // Resizing downwards
         newHeight = Math.max(currentY - startY, minHeight);
         newTop = startY;
       } else {
-        // Resizing upwards
         newHeight = Math.max(startY - currentY, minHeight);
-        newTop = startY - newHeight;  // Adjust top position when resizing upwards
+        newTop = startY - newHeight;
       }
+
       currentElement.style.height = `${newHeight}px`;
       currentElement.style.top = `${newTop}px`;
 
-      // Update task times based on new height and top position
       const task = this.tasks.find(task => task.taskId == currentElement.getAttribute("data-id"));
       if (task) {
-        // Calculate new start time based on new top position
         const newStartTime = Math.floor((newTop / calendar.offsetHeight) * totalMinutesDay);
-        // Calculate new end time based on new height
         const newEndTime = newStartTime + Math.floor((newHeight / calendar.offsetHeight) * totalMinutesDay);
 
-        // Ensure the times do not exceed the day's total minutes and respect minimum duration
         task.startTime = Math.max(newStartTime, 0);
         task.endTime = Math.min(newEndTime, totalMinutesDay);
         if (task.endTime - task.startTime < minMinutes) {
           task.endTime = task.startTime + minMinutes;
         }
       }
+      this.saveTasksToLocalStorage();
     };
 
     const onMouseUp = () => {
@@ -449,6 +498,7 @@ class WeekDisplay extends HTMLElement {
       document.removeEventListener('mouseup', onMouseUp);
 
       this.showTaskForm(currentTask, currentElement);
+      this.saveTasksToLocalStorage();
     };
 
     const onMouseDown = (e) => {
@@ -456,14 +506,10 @@ class WeekDisplay extends HTMLElement {
       if (this.isCreatingTask || this.isResizing) return;
 
       const clickedTask = e.target.closest(".task");
-
-      if (!clickedTask &&
-        !e.target.classList.contains("resize-handle") &&
-        !e.target.classList.contains("remove-btn")) {
+      if (!clickedTask && !e.target.classList.contains("resize-handle") && !e.target.classList.contains("remove-btn")) {
         this.isCreatingTask = true;
         isDrawing = true;
 
-        // Calculate task properties
         const { x, y, dayIndex } = this.calculatePosition(e, "create");
         const calendar = this.shadowRoot.querySelector(".calendar");
         const today = new Date();
@@ -481,14 +527,12 @@ class WeekDisplay extends HTMLElement {
         const taskId = Date.now() + Math.random();
         const description = "(untitled task)";
 
-
         const task = new Task(taskId, taskDate, description, startTime, endTime);
         this.tasks.push(task);
 
         let darkModeOn;
         if (this.isDarkModeOn()) darkModeOn = "dark-mode";
 
-        // Render task element
         const taskEl = document.createElement("div");
         taskEl.classList.add("task", `${darkModeOn}`);
         taskEl.setAttribute("data-id", task.taskId);
@@ -496,7 +540,6 @@ class WeekDisplay extends HTMLElement {
         const calWidth = calendar.clientWidth;
         const calHeight = calendar.clientHeight;
 
-        // Calculate task positions
         const left = (dayIndex * calWidth) / 7;
         const top = (startTime / totalMinutesDay) * calHeight;
         const width = calWidth / 7;
@@ -514,7 +557,8 @@ class WeekDisplay extends HTMLElement {
 
         const time = document.createElement("div");
         time.classList.add("time", `${darkModeOn}`);
-        time.textContent = `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
+        time.textContent =
+          `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
         taskEl.appendChild(time);
 
         this.addResizeHandles(taskEl);
@@ -537,11 +581,13 @@ class WeekDisplay extends HTMLElement {
         startX = x;
         startY = y;
 
-        // Start resizing if the user drags the mouse
         calendar.addEventListener('mousemove', onMouseMove);
         calendar.addEventListener('mouseup', onMouseUp);
+
+        this.saveTasksToLocalStorage();
       }
     };
+
     calendar.addEventListener('mousedown', onMouseDown);
   }
 
@@ -697,6 +743,7 @@ class WeekDisplay extends HTMLElement {
     let startX, startY, offsetX, offsetY;
     let isDragging = false;
     let mouseDownTime;
+    let taskObj;
 
     const onMouseMove = (e) => {
       const dx = e.clientX - startX;
@@ -711,6 +758,7 @@ class WeekDisplay extends HTMLElement {
         const { x, y } = this.calculatePosition(e, "drag");
         taskEl.style.left = `${x - offsetX}px`;
         taskEl.style.top = `${y - offsetY}px`;
+
       }
     };
 
@@ -769,14 +817,15 @@ class WeekDisplay extends HTMLElement {
           startTime = endTime - task.duration;
         }
 
-        task.date = newDate;
-        task.startTime = startTime;
-        task.endTime = endTime;
+        taskObj.date = newDate;
+        taskObj.startTime = startTime;
+        taskObj.endTime = endTime;
 
         // Update taskEl's top position
         taskTop = (startTime / 1440) * calendar.clientHeight;
         taskEl.style.top = `${taskTop}px`;
 
+        this.saveTasksToLocalStorage();
         this.renderTasks();
       }
 
@@ -788,6 +837,9 @@ class WeekDisplay extends HTMLElement {
     };
 
     const onMouseDown = (e) => {
+      const taskId = e.target.getAttribute("data-id");
+      this.tasks = this.loadTasksFromLocalStorage();
+      taskObj = this.tasks.find(t => t.taskId == taskId);
       startX = e.clientX;
       startY = e.clientY;
 
@@ -802,14 +854,6 @@ class WeekDisplay extends HTMLElement {
     };
 
     taskEl.addEventListener('mousedown', onMouseDown);
-  }
-
-  // Helper function to get the Monday of the current week
-  getMonday() {
-    const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
-    return new Date(today.setDate(diff));
   }
 
   // Calculates position within the calendar grid
@@ -845,13 +889,11 @@ class WeekDisplay extends HTMLElement {
     return { x, y, dayIndex };
   }
 
-
   formatTime(minutes) {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   }
-
 
   addRemoveButton(taskEl) {
     const removeBtn = document.createElement("div");
@@ -864,40 +906,19 @@ class WeekDisplay extends HTMLElement {
       e.preventDefault();
       e.stopPropagation();
 
-      // Start the collapse animation
       taskEl.classList.add("collapsing");
 
-      // Remove the task element after the animation completes
       taskEl.addEventListener('transitionend', () => {
         const taskId = taskEl.getAttribute("data-id");
+
         this.tasks = this.tasks.filter(task => task.taskId != taskId);
+        this.saveTasksToLocalStorage();
         this.renderTasks();
-      }, { once: true }); // 'once: true' ensures the event listener is removed after it's called
+      }, { once: true });
     });
 
     taskEl.appendChild(removeBtn);
   }
-
-
-
-
-  // addRemoveButton(taskEl) {
-  //   const removeBtn = document.createElement("div");
-  //   let darkModeOn;
-  //   if (this.isDarkModeOn()) darkModeOn = "dark-mode";
-  //   removeBtn.classList.add("remove-btn", `${darkModeOn}`);
-  //   removeBtn.textContent = "✕";
-  //
-  //   removeBtn.addEventListener("mousedown", (e) => {
-  //     e.preventDefault();
-  //     e.stopPropagation();
-  //     const taskId = taskEl.getAttribute("data-id");
-  //     this.tasks = this.tasks.filter(task => task.taskId != taskId);
-  //     this.renderTasks();
-  //   });
-  //
-  //   taskEl.appendChild(removeBtn);
-  // }
 
   addResizeHandles(taskEl) {
     const topHandle = document.createElement("div");
@@ -927,6 +948,7 @@ class WeekDisplay extends HTMLElement {
     const direction = e.target.classList.contains("top-handle") ? "top" : "bottom";
     const taskEl = e.target.parentElement;
     const taskId = taskEl.getAttribute("data-id");
+    this.tasks = this.loadTasksFromLocalStorage();
     const taskObj = this.tasks.find(t => t.taskId == taskId);
     const slotHeight = this.
       shadowRoot.querySelector(".time-slot:not(.time-header)").clientHeight;
@@ -969,6 +991,7 @@ class WeekDisplay extends HTMLElement {
         taskObj.endTime = initialEndTime + (heightChange / slotHeight) * 60;
       }
       taskEl.style.height = `${newHeight}px`;
+      this.saveTasksToLocalStorage();
     };
 
     // Event listener for mouseup to stop resizing
@@ -978,6 +1001,7 @@ class WeekDisplay extends HTMLElement {
 
       if (taskObj.endTime > 1440) taskObj.endTime = 1440;
 
+      this.saveTasksToLocalStorage();
       this.renderTasks();
     };
 
@@ -996,6 +1020,37 @@ class WeekDisplay extends HTMLElement {
       height: slot.clientHeight,
     };
   }
+
+
+  initParametersButton() {
+    const parametersContainer = this.shadowRoot.querySelector('.parameters-container');
+    const parametersWindow = document.createElement('div');
+    parametersWindow.classList.add('parameters-window');
+    parametersWindow.innerHTML = `
+    `;
+    parametersContainer.appendChild(parametersWindow);
+
+    // Add event listeners
+    const parametersBtn = this.shadowRoot.querySelector('.parameters-btn');
+
+    parametersBtn.addEventListener('mouseover', () => {
+      parametersWindow.style.display = 'block';
+    });
+
+    parametersBtn.addEventListener('mouseout', () => {
+      parametersWindow.style.display = 'none';
+    });
+
+    parametersWindow.addEventListener('mouseover', () => {
+      parametersWindow.style.display = 'block';
+    });
+
+    parametersWindow.addEventListener('mouseout', () => {
+      parametersWindow.style.display = 'none';
+    });
+  }
+
+
 
 
   getTemplate() {
@@ -1360,6 +1415,8 @@ font-weight: bold;
   font-weight: bold; 
 }
 
+                              /* PARAMS BUTTON NAVIGATION BAR */
+
                           /* DARK MODE TOGGLE SWITCH */
 .switch { 
   position: relative;
@@ -1407,7 +1464,7 @@ input:checked + .slider:before {
   transform: translateX(20px);
 }
 
-          /*  MODAL D'AFFICHAGE DES TASKS */
+                        /*  MODAL D'AFFICHAGE DES TASKS */
 .task-list-modal {
   position: fixed;
   top: 0;
@@ -1643,12 +1700,25 @@ button.accentuated.dark-mode {
 
     
 <div class="container">
+
   <div class="navbar">
-    <button class="prev-week-btn">Previous Week</button>
-    <div class="month-year-display accentuated"></div> 
-    <button class="today-btn">Today</button>
-    <button class="task-list-btn">Task List</button>
-    <button class="next-week-btn">Next Week</button>
+    <button class="prev-week-btn"><i class="fas fa-arrow-left"></i></button>
+    <button class="next-week-btn"><i class="fas fa-arrow-right"></i></button>
+    <button class="today-btn"><i class="fas fa-calendar-day"></i></button>
+
+    <div class="month-year-display accentuated"></div>
+
+    <button class="task-list-btn"><i class="fas fa-list"></i></button>
+
+    <div class="parameters-container">
+      <button class="parameters-btn">
+        <i class="fas fa-cogs"></i>
+        <span class="badge"></span>
+      </button>
+    </div>
+
+    <button class="control-panel-btn"><i class="fas fa-tasks"></i></button>
+
     <label class="switch">
       <input type="checkbox" id="dark-mode-toggle">
       <span class="slider"></span>

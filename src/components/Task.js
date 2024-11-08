@@ -40,6 +40,7 @@ class Task {
       ._date.toLocaleString("en-US", { weekday: "long" });
     return dayMap[dayName];
   }
+
   get date() { return this._date; };
   set date(d) { this._date = d; };
 }
