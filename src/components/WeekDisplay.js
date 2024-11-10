@@ -4,7 +4,7 @@ class WeekDisplay extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = this.getTemplate();
     this.currentDate = new Date();
-    this.tasks = [];
+    this.tasks = this.loadTasksFromLocalStorage();
     this.isResizing = false;
     this.isCreatingTask = false;
     this.currentDate = this.getMonday(new Date());
@@ -301,9 +301,8 @@ class WeekDisplay extends HTMLElement {
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 7); // Set to next Monday
 
-    const localTasks = this.loadTasksFromLocalStorage();
 
-    const filteredTasks = localTasks.filter(task => {
+    const filteredTasks = this.tasks.filter(task => {
       const taskDate = new Date(task.date);
       return taskDate >= startOfWeek && taskDate < endOfWeek;
     });
@@ -485,6 +484,7 @@ class WeekDisplay extends HTMLElement {
         }
       }
       this.saveTasksToLocalStorage();
+      this.tasks = this.loadTasksFromLocalStorage();
     };
 
     const onMouseUp = () => {
@@ -499,6 +499,7 @@ class WeekDisplay extends HTMLElement {
 
       this.showTaskForm(currentTask, currentElement);
       this.saveTasksToLocalStorage();
+      this.tasks = this.loadTasksFromLocalStorage();
     };
 
     const onMouseDown = (e) => {
@@ -585,6 +586,7 @@ class WeekDisplay extends HTMLElement {
         calendar.addEventListener('mouseup', onMouseUp);
 
         this.saveTasksToLocalStorage();
+        this.tasks = this.loadTasksFromLocalStorage();
       }
     };
 
@@ -689,6 +691,11 @@ class WeekDisplay extends HTMLElement {
       task.startTime = startTime;
       task.endTime = endTime;
 
+      this.saveTasksToLocalStorage();
+      this.tasks = this.loadTasksFromLocalStorage();
+
+      console.log(task);
+
       overlay.remove(); // Remove the overlay
       this.renderTasks(); // Re-render tasks
     });
@@ -758,7 +765,6 @@ class WeekDisplay extends HTMLElement {
         const { x, y } = this.calculatePosition(e, "drag");
         taskEl.style.left = `${x - offsetX}px`;
         taskEl.style.top = `${y - offsetY}px`;
-
       }
     };
 
@@ -826,6 +832,7 @@ class WeekDisplay extends HTMLElement {
         taskEl.style.top = `${taskTop}px`;
 
         this.saveTasksToLocalStorage();
+        this.tasks = this.loadTasksFromLocalStorage();
         this.renderTasks();
       }
 
@@ -837,8 +844,7 @@ class WeekDisplay extends HTMLElement {
     };
 
     const onMouseDown = (e) => {
-      const taskId = e.target.getAttribute("data-id");
-      this.tasks = this.loadTasksFromLocalStorage();
+      const taskId = e.target.closest(".task").getAttribute("data-id");
       taskObj = this.tasks.find(t => t.taskId == taskId);
       startX = e.clientX;
       startY = e.clientY;
@@ -912,7 +918,10 @@ class WeekDisplay extends HTMLElement {
         const taskId = taskEl.getAttribute("data-id");
 
         this.tasks = this.tasks.filter(task => task.taskId != taskId);
+
         this.saveTasksToLocalStorage();
+        this.tasks =this.loadTasksFromLocalStorage();
+
         this.renderTasks();
       }, { once: true });
     });
@@ -992,6 +1001,7 @@ class WeekDisplay extends HTMLElement {
       }
       taskEl.style.height = `${newHeight}px`;
       this.saveTasksToLocalStorage();
+      this.tasks = this.loadTasksFromLocalStorage();
     };
 
     // Event listener for mouseup to stop resizing
