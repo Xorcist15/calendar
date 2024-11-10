@@ -441,9 +441,15 @@ class WeekDisplay extends HTMLElement {
 
   // save tasks to localStorage
   saveTasksToLocalStorage() {
-
     localStorage.setItem('tasks', JSON.stringify(this.tasks));  // Store tasks in localStorage as a JSON string
   }
+
+  // update changes and save tasks
+  updateTasks() {
+    this.saveTasksToLocalStorage();
+    this.tasks = this.loadTasksFromLocalStorage();
+  }
+
 
   createAndResizeTask() {
     const calendar = this.shadowRoot.querySelector(".calendar");
@@ -607,16 +613,18 @@ class WeekDisplay extends HTMLElement {
     const form = document.createElement('form');
     form.classList.add("form", `${darkModeOn}`);
     form.innerHTML = `
+  <div class="form-close-button">✕</div>
   <label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
   <label>Title: <input type="text" name="title" value="${task.title}" required></label>
   <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
   <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
   <div class="duration-display"></div>
   <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
-  <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
   <button type="submit">Save</button>
   <div class="error-message"></div>
     `;
+
+
 
     // Focus on the submit button
     const submitButton = form.querySelector('button[type="submit"]');
@@ -707,6 +715,12 @@ class WeekDisplay extends HTMLElement {
         document.removeEventListener('keydown', closeForm); // Clean up the event listener
       }
     };
+    const closeBtn = form.querySelector(".form-close-button");
+    closeBtn.addEventListener("click", () => {
+        overlay.remove(); // Remove the overlay
+        document.removeEventListener('keydown', closeForm); // Clean up the event listener
+
+    });
 
     // Add event listener for Escape key
     document.addEventListener('keydown', closeForm);
@@ -1232,8 +1246,8 @@ class WeekDisplay extends HTMLElement {
                               /* REMOVE BUTTON STYLES */
 .remove-btn {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 10px;
+  height: 10px;
   top: 5px;
   right: 5px;
   cursor: pointer;
@@ -1241,7 +1255,7 @@ class WeekDisplay extends HTMLElement {
   background-color: #e63946;
   color: #fff;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1312,6 +1326,25 @@ class WeekDisplay extends HTMLElement {
   display: flex;
   flex-direction: column;
   gap: 15px;
+  position: relative;
+}
+
+.form-close-button {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  top: 15px;
+  right: 15px;
+  cursor: pointer;
+  padding: 2px;
+  background-color: #e63946;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .form label {
