@@ -3,11 +3,11 @@ class WeekDisplay extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = this.getTemplate();
-    this.currentDate = new Date();
+    this.currentDate = this.getMonday(new Date());
+
     this.tasks = this.loadTasksFromLocalStorage();
     this.isResizing = false;
     this.isCreatingTask = false;
-    this.currentDate = this.getMonday(new Date());
     this.interactiveNavbar();
   }
 
@@ -29,8 +29,6 @@ class WeekDisplay extends HTMLElement {
       addEventListener('click', () => this.changeWeek(1));
     this.shadowRoot.querySelector('#dark-mode-toggle').
       addEventListener('click', () => this.toggleDarkMode());
-    this.shadowRoot.querySelector('.task-list-btn').
-      addEventListener('click', () => this.showTaskList());
 
     // next week
     const handleRightBtn = (event) => {
@@ -49,69 +47,60 @@ class WeekDisplay extends HTMLElement {
       if (event.key === 'ArrowDown') { this.goToToday(); }
     };
     document.addEventListener('keydown', handleDownBtn);
+
+
+    // Add event listeners
+    this.shadowRoot.querySelector(".parameters-btn")
+      .addEventListener("mouseenter", (e) => {
+        if (!this.shadowRoot.querySelector(".config-window")) {
+          this.showConfig(e);
+        }
+      });
   }
 
-  showTaskList() {
-    let darkModeOn;
-    if (this.isDarkModeOn()) darkModeOn = "dark-mode";
-    const modal = document.createElement('div');
-    modal.classList.add('task-list-modal', `${darkModeOn}`);
+    showConfig(e) {
+    const button = e.target;
 
-    const closeButton = document.createElement('button');
-    closeButton.innerHTML = '<i class="fas fa-times"></i>';
-    closeButton.classList.add('close-btn', `${darkModeOn}`);
-    closeButton.addEventListener('click', () => {
-      modal.remove();
-      document.removeEventListener('keydown', handleEscapeKey);
+    // Create the config window element dynamically
+    const configWindow = document.createElement("div");
+    configWindow.classList.add("config-window");
+    configWindow.innerHTML = `
+      <div class="config-content">
+          <label>
+            Language
+            <button>Fr</button>
+            <button>En</button>
+          </label>
+
+          <label>
+            header 
+            <button>[Day] [Day Number]</button>
+            <button>dd/mm/yyyy</button>
+          </label>
+      </div>
+    `;
+
+    // Append the config window to the shadow DOM
+    this.shadowRoot.appendChild(configWindow);
+
+    // Get the button's position
+    const buttonRect = button.getBoundingClientRect();
+    const configRect = configWindow.getBoundingClientRect();
+
+    // Position the config window just below the button
+    configWindow.style.top = `${buttonRect.bottom + window.scrollY}px`;
+    configWindow.style.left = `${buttonRect.left - configRect.width + buttonRect.width}px`;
+
+    // Hide the config window when mouse leaves
+    configWindow.addEventListener("mouseleave", () => {
+      this.hideConfig();
     });
+  }
 
-    const handleEscapeKey = (event) => {
-      if (event.key === 'Escape') {
-        modal.remove();
-        document.removeEventListener('keydown', handleEscapeKey);
-      }
-    };
-
-    // Add the keydown listener to close the modal when Escape is pressed
-    document.addEventListener('keydown', handleEscapeKey);
-
-    if (this.tasks.length === 0) {
-      const noTasksMessage = document.createElement('div');
-      noTasksMessage.classList.add("no-tasks-msg", `${darkModeOn}`);
-      noTasksMessage.textContent = "No tasks created to display :(";
-      modal.appendChild(noTasksMessage);
-    } else {
-      const taskList = document.createElement('ul');
-      taskList.classList.add('task-list', `${darkModeOn}`);
-
-      this.tasks.forEach(task => {
-        const taskItem = document.createElement('li');
-        taskItem.classList.add('task-item', `${darkModeOn}`);
-        const taskTitle = document.createElement('strong');
-        taskTitle.innerHTML = `<i class="fas fa-tasks"></i> 
-          ${task.title}`;
-        const taskDescription = document.createElement('p');
-        taskDescription.innerHTML = `<i class="fas fa-align-left"></i> 
-          ${task.description}`;
-        const taskDate = document.createElement('p');
-        taskDate.innerHTML = `<i class="fas fa-calendar-alt"></i> 
-          ${task.date.toLocaleDateString()}`;
-        const taskDuration = document.createElement('p');
-        taskDuration.innerHTML = `<i class="fas fa-hourglass-half"></i> 
-          ${this.convertMinutesToTime(task.duration)}`;
-
-        taskItem.appendChild(taskTitle);
-        if (task.description) taskItem.appendChild(taskDescription);
-        taskItem.appendChild(taskDate);
-        taskItem.appendChild(taskDuration);
-
-        taskList.appendChild(taskItem);
-      });
-      modal.appendChild(taskList);
-    }
-
-    modal.appendChild(closeButton);
-    this.shadowRoot.appendChild(modal);
+  hideConfig() {
+    const configWindow = this.shadowRoot.querySelector(".config-window"); 
+    configWindow.style.display = "none"; // Hide the config window
+    this.shadowRoot.removeChild(configWindow); // Remove it from the DOM
   }
 
   renderTimeSlots() {
@@ -159,7 +148,7 @@ class WeekDisplay extends HTMLElement {
       `.container, .calendar, .day-header, .time-header, .empty, 
       .navbar, .header-row, .container-time-label, button, 
       .task, .remove-btn, .resize-handle, .title, .time, .description,
-      .task-list-modal, .task-list, .task-item, .close-btn, .current-day`
+      .task-list, .task-item, .close-btn, .current-day`
     );
     elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
     this.renderTasks();
@@ -1507,81 +1496,20 @@ input:checked + .slider:before {
   transform: translateX(20px);
 }
 
-                        /*  MODAL D'AFFICHAGE DES TASKS */
-.task-list-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.7); 
-  display: flex;
-  justify-content: center;
+.config-window {
+  position: absolute; 
+  width: 200px;
+  height: auto;
+  background-color: #ffffff;
+  color: #000000;
+  font-size: 1rem;
+  padding: 1rem;
+  border-radius: 0.5rem; 
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  display: flex; 
   align-items: center;
-  z-index: 10;
-  backdrop-filter: blur(5px);
-}
-
-.task-list {
-  background-color: #ffffff; 
-  padding: 30px;
-  border-radius: 12px;
-  max-height: 80%;
-  overflow-y: auto;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  animation: fadeIn 0.3s ease;
-  list-style: none;
-}
-
-.task-item {
-  margin-bottom: 20px;
-  border-bottom: 1px solid #e0e0e0;
-  padding-bottom: 10px;
-
-}
-
-.task-item:last-child {
-  border-bottom: none;
-}
-
-.close-btn {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  background-color: #ff4d4d;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.close-btn:hover {
-  background-color: #ff1a1a;
-}
-
-.no-tasks-msg {
-  background-color: #fff3cd; /* Soft yellow background */
-  color: #856404; /* Dark yellow text */
-  padding: 20px;
-  border: 1px solid #ffeeba; /* Light yellow border */
-  border-radius: 8px;
-  text-align: center; 
-  font-size: 18px;
-  margin: 20px 0;
-}
-
-/* Animation for modal appearance */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  justify-content: center; 
+  z-index: 2;
 }
 
                             /* DARK MODE STYLES */
@@ -1751,16 +1679,7 @@ button.accentuated.dark-mode {
 
     <div class="month-year-display accentuated"></div>
 
-    <button class="task-list-btn"><i class="fas fa-list"></i></button>
-
-    <div class="parameters-container">
-      <button class="parameters-btn">
-        <i class="fas fa-cogs"></i>
-        <span class="badge"></span>
-      </button>
-    </div>
-
-    <button class="control-panel-btn"><i class="fas fa-tasks"></i></button>
+    <button class="parameters-btn"> <i class="fas fa-cogs"></i> </button>
 
     <label class="switch">
       <input type="checkbox" id="dark-mode-toggle">
