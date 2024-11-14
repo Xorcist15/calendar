@@ -356,6 +356,7 @@ class WeekDisplay extends HTMLElement {
     let startX, startY;
     let currentTask = null;
     let currentElement = null;
+    let task;
 
     const onMouseMove = (e) => {
       if (!isDrawing) return;
@@ -377,7 +378,8 @@ class WeekDisplay extends HTMLElement {
       currentElement.style.height = `${newHeight}px`;
       currentElement.style.top = `${newTop}px`;
 
-      const task = this.tasks.find(task => task.taskId == currentElement.getAttribute("data-id"));
+      // const task = this.tasks.find(task => task.taskId == currentElement.getAttribute("data-id"));
+      console.log(task);
       if (task) {
         const newStartTime = Math.floor((newTop / calendar.offsetHeight) * totalMinutesDay);
         const newEndTime = newStartTime + Math.floor((newHeight / calendar.offsetHeight) * totalMinutesDay);
@@ -433,8 +435,8 @@ class WeekDisplay extends HTMLElement {
         const taskId = Date.now() + Math.random();
         const description = "(untitled task)";
 
-        const task = new Task(taskId, taskDate, description, startTime, endTime, "");
-        this.tasks.push(task);
+        task = new Task(taskId, taskDate, description, startTime, endTime, "");
+        // this.tasks.push(task);
 
         let darkModeOn;
         if (this.isDarkModeOn()) darkModeOn = "dark-mode";
@@ -477,7 +479,7 @@ class WeekDisplay extends HTMLElement {
           if (!e.target.classList.contains("resize-handle") &&
             !e.target.classList.contains("remove-btn") &&
             !taskEl.classList.contains('dragging')) {
-            this.showTaskForm(task, taskEl);
+            this.showTaskForm(task);
           }
         });
 
@@ -500,30 +502,44 @@ class WeekDisplay extends HTMLElement {
     calendar.addEventListener('mousedown', onMouseDown);
   }
 
+
   showTaskForm(task) {
     if (this.isDragging) { return; }
 
     // Create the overlay
     const overlay = document.createElement('div');
-    overlay.className = 'overlay'; // Apply overlay class
+    overlay.className = 'overlay';
 
-    let darkModeOn;
-    if (this.isDarkModeOn()) darkModeOn = "dark-mode";
+    let darkModeOn = this.isDarkModeOn() ? "dark-mode" : 'light-mode';
 
     // Create the form
     const form = document.createElement('form');
     form.classList.add("form", `${darkModeOn}`);
+    // form.classList.add("form");
     form.innerHTML = `
-  <div class="form-close-button">✕</div>
-  <label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
-  <label>Title: <input type="text" name="title" value="${task.title}" required></label>
-  <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
-  <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
-  <div class="duration-display"></div>
-  <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
-  <label>Task color: <input type="color" name="color" value="${task.color}" required></label>
-  <button type="submit">Save</button>
-  <div class="error-message"></div>
+<div class="form-close-button">✕</div>
+<label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
+<label>Title: <input type="text" name="title" value="${task.title}" required></label>
+<label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
+<label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
+<div class="duration-display"></div>
+<label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
+<div>
+  <p>Task color:</p>
+  <ul class="color-tags-container">
+    <li class="color-tags" data-color="#FFABAB" style="background-color: #FFABAB;"></li>
+    <li class="color-tags" data-color="#BFFCC6" style="background-color: #BFFCC6;"></li>
+    <li class="color-tags" data-color="#97A2FF" style="background-color: #97A2FF;"></li>
+    <li class="color-tags" data-color="#C4FAF8" style="background-color: #C4FAF8;"></li>
+    <li class="color-tags" data-color="#AFF8DB" style="background-color: #AFF8DB;"></li>
+    <li class="color-tags" data-color="#FF9CEE" style="background-color: #FF9CEE;"></li>
+    <li class="color-tags" data-color="#6EB5FF" style="background-color: #6EB5FF;"></li>
+    <li class="color-tags" data-color="#FFF5BA" style="background-color: #FFF5BA;"></li>
+  </ul>
+  <input type="hidden" name="color" id="color-input" value="${task.color}">
+</div>
+<button type="submit">Save</button>
+<div class="error-message"></div>
     `;
 
     // Focus on the submit button
@@ -532,96 +548,123 @@ class WeekDisplay extends HTMLElement {
 
     // Function to update the duration display
     const updateTimeDisplay = () => {
-      const startTimeInput = form.querySelector('input[name="startTime"]');
-      const endTimeInput = form.querySelector('input[name="endTime"]');
-      const durationDisplay = form.querySelector('.duration-display');
+        const startTimeInput = form.querySelector('input[name="startTime"]');
+        const endTimeInput = form.querySelector('input[name="endTime"]');
+        const durationDisplay = form.querySelector('.duration-display');
 
-      const startTime = this.convertTimeToMinutes(startTimeInput.value);
-      let endTime = this.convertTimeToMinutes(endTimeInput.value);
+        const startTime = this.convertTimeToMinutes(startTimeInput.value);
+        let endTime = this.convertTimeToMinutes(endTimeInput.value);
 
-      // If endTime is null or empty, set it to 1440 minutes (24:00)
-      if (!endTimeInput.value) {
-        endTime = 1440;
-      }
+        // If endTime is null or empty, set it to 1440 minutes (24:00)
+        if (!endTimeInput.value) {
+            endTime = 1440;
+        }
 
-      // Calculate duration
-      const duration = endTime - startTime;
+        // Calculate duration
+        const duration = endTime - startTime;
 
-      // Update duration display
-      durationDisplay.textContent = duration > 0
-        ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
-        : 'Duration: 0 hours 0 minutes';
+        // Update duration display
+        durationDisplay.textContent = duration > 0
+            ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
+            : 'Duration: 0 hours 0 minutes';
     };
 
+    // Handle color selection
+    const colorInput = form.querySelector('#color-input');
+    form.querySelectorAll(".color-tags").forEach(btn => {
+        if (btn.getAttribute("data-color") === task.color) {
+            btn.classList.add('selected');
+        }
+        btn.addEventListener('click', () => {
+            form.querySelectorAll(".color-tags").forEach(el => el.classList.remove('selected'));
+            btn.classList.add('selected');
+            colorInput.value = btn.getAttribute("data-color");
+        });
+    });
+
     // Handle form submission
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
+    // Handle form submission
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
 
-      const formData = new FormData(form);
-      const date = formData.get('date');
-      const title = formData.get('title');
-      const startTime = this.convertTimeToMinutes(formData.get('startTime'));
-      let endTime = this.convertTimeToMinutes(formData.get('endTime'));
-      const color = formData.get('color');
-      const errorMessageElement = form.querySelector('.error-message');
+    const formData = new FormData(form);
+    const date = formData.get('date');
+    const title = formData.get('title');
+    const startTime = this.convertTimeToMinutes(formData.get('startTime'));
+    let endTime = this.convertTimeToMinutes(formData.get('endTime'));
+    const color = formData.get('color');
+    const errorMessageElement = form.querySelector('.error-message');
 
-      // Clear previous error message
-      errorMessageElement.style.display = 'none';
-      errorMessageElement.textContent = '';
+    // Clear previous error message
+    errorMessageElement.style.display = 'none';
+    errorMessageElement.textContent = '';
 
-      // Validation checks
-      const selectedDate = new Date(date);
-      if (isNaN(selectedDate.getTime())) {
+    // Validation checks
+    const selectedDate = new Date(date);
+    if (isNaN(selectedDate.getTime())) {
         errorMessageElement.textContent = 'Please select a valid date.';
         errorMessageElement.style.display = 'block';
         return;
-      }
+    }
 
-      if (startTime < 0 || startTime > 1440) {
+    if (startTime < 0 || startTime > 1440) {
         errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
         errorMessageElement.style.display = 'block';
         return;
-      }
-      if (endTime < 0 || endTime > 1440) {
+    }
+    if (endTime < 0 || endTime > 1440) {
         errorMessageElement.textContent = 'End time must be between 00:00 and 24:00.';
         errorMessageElement.style.display = 'block';
         return;
-      }
-      if (endTime <= startTime) {
+    }
+    if (endTime <= startTime) {
         errorMessageElement.textContent = 'End time must be greater than start time.';
         errorMessageElement.style.display = 'block';
         return;
-      }
+    }
 
-      // Update task only if all validations pass
-      task.title = title;
-      task.date = selectedDate; // Use the selected date
-      task.description = formData.get('description');
-      task.startTime = startTime;
-      task.endTime = endTime;
-      task.color = color;
+    // Find the index of the task in the tasks array
+    const taskIndex = this.tasks.findIndex(t => t.taskId == task.taskId);
 
-      this.saveTasksToLocalStorage();
-      this.tasks = this.loadTasksFromLocalStorage();
-      console.log(this.tasks);
+    if (taskIndex > -1) {
+        // Update existing task
+        this.tasks[taskIndex].title = title;
+        this.tasks[taskIndex].date = selectedDate;
+        this.tasks[taskIndex].description = formData.get('description');
+        this.tasks[taskIndex].startTime = startTime;
+        this.tasks[taskIndex].endTime = endTime;
+        this.tasks[taskIndex].color = color;
+    } else {
+        // Add new task if it doesn't exist
+        task.title = title;
+        task.date = selectedDate;
+        task.description = formData.get('description');
+        task.startTime = startTime;
+        task.endTime = endTime;
+        task.color = color;
+        this.tasks.push(task);
+    }
+    console.log(this.tasks)
 
+    this.saveTasksToLocalStorage();
+    this.tasks = this.loadTasksFromLocalStorage();
 
-      overlay.remove(); // Remove the overlay
-      this.renderTasks(); // Re-render tasks
-    });
+    overlay.remove(); // Remove the overlay
+    this.renderTasks(); // Re-render tasks
+  });
+
 
     // Close the form on Escape key press
     const closeForm = (e) => {
-      if (e.key === 'Escape') {
-        overlay.remove(); // Remove the overlay
-        document.removeEventListener('keydown', closeForm); // Clean up the event listener
-      }
+        if (e.key === 'Escape') {
+            overlay.remove(); // Remove the overlay
+            document.removeEventListener('keydown', closeForm); // Clean up the event listener
+        }
     };
     const closeBtn = form.querySelector(".form-close-button");
     closeBtn.addEventListener("click", () => {
         overlay.remove(); // Remove the overlay
         document.removeEventListener('keydown', closeForm); // Clean up the event listener
-
     });
 
     // Add event listener for Escape key
@@ -636,6 +679,7 @@ class WeekDisplay extends HTMLElement {
     // Initial update of the time display and duration
     updateTimeDisplay();
   }
+
 
   // Helper function to format the date to 'YYYY-MM-DD'
   formatDate(dateString) {
@@ -1217,8 +1261,9 @@ class WeekDisplay extends HTMLElement {
   z-index: 1000;
 }
 
+/* Container for the form */
 .form {
-  background: #fff;
+  background-color: #ffffff;
   padding: 20px;
   border-radius: 10px;
   width: 90%;
@@ -1230,59 +1275,97 @@ class WeekDisplay extends HTMLElement {
   position: relative;
 }
 
+/* Close button styling */
 .form-close-button {
   position: absolute;
-  width: 12px;
-  height: 12px;
   top: 15px;
   right: 15px;
+  width: 24px;
+  height: 24px;
   cursor: pointer;
-  padding: 2px;
   background-color: #e63946;
-  color: #fff;
+  color: #ffffff;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border: none;
 }
 
+/* General label styling */
 .form label {
   display: flex;
   flex-direction: column;
   font-size: 14px;
   font-weight: bold;
-  color: #333;
+  color: #333333;
 }
 
+/* Input and textarea styling */
 .form input[type="text"],
 .form input[type="date"],
 .form input[type="time"],
-.form textarea {
+.form textarea,
+.form input[type="color"] {
   font-size: 14px;
-  padding: 8px;
+  padding: 10px;
   margin-top: 5px;
-  border: 1px solid #ccc;
+  border: 1px solid #cccccc;
   border-radius: 5px;
   width: 100%;
   box-sizing: border-box;
+  transition: border-color 0.3s ease;
+}
+
+.form input[type="text"]:focus,
+.form input[type="date"]:focus,
+.form input[type="time"]:focus,
+.form textarea:focus,
+.form input[type="color"]:focus {
+  border-color: #007bff;
+  outline: none;
 }
 
 .form textarea {
   resize: vertical;
-  height: auto; 
+  height: auto;
 }
 
+/* Color buttons container */
+.color-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+/* Color button styling */
+.color-tags {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.3s ease;
+}
+
+.color-tags.selected {
+  border-color: #000000;
+}
+
+/* Save button styling */
 .form button[type="submit"] {
-  padding: 10px 15px;
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: bold;
+  color: #ffffff;
   background-color: #007bff;
-  color: white;
   border: none;
   border-radius: 5px;
-  font-size: 14px;
   cursor: pointer;
-  align-self: flex-end;
   transition: background-color 0.3s ease;
 }
 
@@ -1290,16 +1373,20 @@ class WeekDisplay extends HTMLElement {
   background-color: #0056b3;
 }
 
-.form .error-message {
-  color: red;
-  font-size: 12px;
-  display: none; 
+/* Duration display styling */
+.duration-display {
+  font-size: 14px;
+  color: #666666;
 }
 
-.form .duration-display {
-  font-size: 12px;
-  color: #666;
+/* Error message styling */
+.error-message {
+  color: #e63946;
+  font-size: 14px;
+  display: none;
 }
+
+
 
                             /* NAVIGATION BAR */
 .navbar {
@@ -1408,22 +1495,6 @@ input:checked + .slider:before {
   transform: translateX(20px);
 }
 
-.config-window {
-  position: absolute; 
-  width: 200px;
-  height: auto;
-  background-color: #ffffff;
-  color: #000000;
-  font-size: 1rem;
-  padding: 1rem;
-  border-radius: 0.5rem; 
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  display: flex; 
-  align-items: center;
-  justify-content: center; 
-  z-index: 2;
-}
-
                             /* DARK MODE STYLES */
 .dark-mode {
   background-color: #121212;
@@ -1503,7 +1574,6 @@ button.accentuated.dark-mode {
   border: 1px solid #444;
   padding: 10px;
   border-radius: 4px;
-  width: 100%;
 }
 
 .form.dark-mode button {
