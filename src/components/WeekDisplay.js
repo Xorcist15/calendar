@@ -289,8 +289,7 @@ class WeekDisplay extends HTMLElement {
         taskEl.appendChild(time);
 
         const description = document.createElement("div");
-        // description.classList.add("description", `${darkModeOn}`);
-        description.classList.add("description");
+        description.classList.add("description", `${darkModeOn}`);
         description.textContent = `${task.description}`;
         taskEl.appendChild(description);
 
@@ -1478,10 +1477,6 @@ button.accentuated.dark-mode {
 .time.dark-mode,
 .description.dark-mode {
   color: White !important;
-}
-
-.remove-btn.dark-mode {
-   
 }
 
 .resize-handle.dark-mode {
