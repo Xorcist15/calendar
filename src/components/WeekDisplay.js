@@ -47,97 +47,6 @@ class WeekDisplay extends HTMLElement {
       if (event.key === 'ArrowDown') { this.goToToday(); }
     };
     document.addEventListener('keydown', handleDownBtn);
-
-
-    // Add event listeners
-    this.shadowRoot.querySelector(".parameters-btn")
-      .addEventListener("mouseenter", (e) => {
-        if (!this.shadowRoot.querySelector(".config-window")) {
-          this.showConfig(e);
-        }
-      });
-  }
-
-    showConfig(e) {
-    const button = e.target;
-
-    // Create the config window element dynamically
-    const configWindow = document.createElement("div");
-    configWindow.classList.add("config-window");
-    configWindow.innerHTML = `
-      <div class="config-content">
-          <label>
-            Language
-            <button>Fr</button>
-            <button>En</button>
-          </label>
-
-          <label>
-            header 
-            <button>[Day] [Day Number]</button>
-            <button>dd/mm/yyyy</button>
-          </label>
-      </div>
-    `;
-
-    // Append the config window to the shadow DOM
-    this.shadowRoot.appendChild(configWindow);
-
-    // Get the button's position
-    const buttonRect = button.getBoundingClientRect();
-    const configRect = configWindow.getBoundingClientRect();
-
-    // Position the config window just below the button
-    configWindow.style.top = `${buttonRect.bottom + window.scrollY}px`;
-    configWindow.style.left = `${buttonRect.left - configRect.width + buttonRect.width}px`;
-
-    // Hide the config window when mouse leaves
-    configWindow.addEventListener("mouseleave", () => {
-      this.hideConfig();
-    });
-  }
-
-  hideConfig() {
-    const configWindow = this.shadowRoot.querySelector(".config-window"); 
-    configWindow.style.display = "none"; // Hide the config window
-    this.shadowRoot.removeChild(configWindow); // Remove it from the DOM
-  }
-
-  renderTimeSlots() {
-    const calendar = this.shadowRoot.querySelector('.calendar');
-    const timeLabelCol = this.shadowRoot.querySelector('.time-label-col');
-
-    const currentTimeSlots = calendar.querySelectorAll(".time-slot");
-    currentTimeSlots.forEach(cts => cts.remove());
-
-    const currentTimeLabels = timeLabelCol.querySelectorAll('.time-header');
-    currentTimeLabels.forEach(ctl => ctl.remove());
-
-    let darkModeOn;
-
-    if (this.isDarkModeOn()) {
-      darkModeOn = "dark-mode";
-    }
-
-    for (let hour = 0; hour < 24; hour++) {
-      const timeLabel = document.createElement('div');
-      timeLabel.classList.add('time-slot', 'time-header', `${darkModeOn}`);
-      timeLabel.textContent = `${hour}:00`;
-      timeLabelCol.appendChild(timeLabel);
-
-      for (let day = 0; day < 7; day++) {
-        const timeSlot = document.createElement('div');
-        timeSlot.classList.add("time-slot");
-        timeSlot.setAttribute('data-hour', hour);
-        timeSlot.setAttribute('data-day', day);
-        calendar.appendChild(timeSlot);
-      }
-    }
-    // afficher mois milieu du nav bar
-    const options = { year: 'numeric', month: 'long' };
-    const formattedDate = this.currentDate.toLocaleDateString('en-US', options);
-    const monthYearDisplay = this.shadowRoot.querySelector('.month-year-display');
-    monthYearDisplay.textContent = formattedDate;
   }
 
   /*
@@ -222,7 +131,7 @@ class WeekDisplay extends HTMLElement {
     }
     // afficher mois nav bar
     const options = { year: 'numeric', month: 'long' };
-    const formattedDate = this.currentDate.toLocaleDateString('en-US', options);
+    const formattedDate = this.currentDate.toLocaleDateString('fr-FR', options);
     const monthYearDisplay = this.shadowRoot.querySelector('.month-year-display');
     monthYearDisplay.textContent = formattedDate;
   }
@@ -238,21 +147,22 @@ class WeekDisplay extends HTMLElement {
     monday.setDate(this.currentDate.getDate() - ((dayOfWeek + 6) % 7));
 
     // Array of day names
-    const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
     // Get today's date for comparison
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time for accurate comparison
+    today.setHours(0, 0, 0, 0);
 
     // Populate each day header with the current date and day name
     dayHeaders.forEach((dayHeader, index) => {
       const currentDay = new Date(monday);
-      currentDay.setDate(monday.getDate() + index); // Loop over days
-      const dayNumber = currentDay.getDate();
-      const dayName = dayNames[index]; // Get the name of the day from the array
+      currentDay.setDate(monday.getDate() + index); 
+
+      const date = currentDay.toLocaleDateString("fr-FR");
+      const dayName = dayNames[index];
 
       // Combine day name and date
-      dayHeader.textContent = `${dayName} ${dayNumber}`;
+      dayHeader.textContent = `${dayName} ${date}`;
 
       // Compare currentDay with today based on year, month, and day
       if (currentDay.getFullYear() === today.getFullYear() &&
@@ -379,7 +289,8 @@ class WeekDisplay extends HTMLElement {
         taskEl.appendChild(time);
 
         const description = document.createElement("div");
-        description.classList.add("description", `${darkModeOn}`);
+        // description.classList.add("description", `${darkModeOn}`);
+        description.classList.add("description");
         description.textContent = `${task.description}`;
         taskEl.appendChild(description);
 
@@ -424,13 +335,14 @@ class WeekDisplay extends HTMLElement {
   loadTasksFromLocalStorage() {
     const storedJSON = JSON.parse(localStorage.getItem("tasks")) || [];
     return storedJSON.map(obj =>
-      new Task(obj._id, new Date(obj._date), obj._title, obj._startTime, obj._endTime)
+      new Task(obj._id, new Date(obj._date), obj._title, obj._startTime, obj._endTime, obj._description)
     );
   }
 
   // save tasks to localStorage
   saveTasksToLocalStorage() {
     localStorage.setItem('tasks', JSON.stringify(this.tasks));  // Store tasks in localStorage as a JSON string
+
   }
 
   // update changes and save tasks
@@ -523,7 +435,7 @@ class WeekDisplay extends HTMLElement {
         const taskId = Date.now() + Math.random();
         const description = "(untitled task)";
 
-        const task = new Task(taskId, taskDate, description, startTime, endTime);
+        const task = new Task(taskId, taskDate, description, startTime, endTime, "");
         this.tasks.push(task);
 
         let darkModeOn;
@@ -613,8 +525,6 @@ class WeekDisplay extends HTMLElement {
   <div class="error-message"></div>
     `;
 
-
-
     // Focus on the submit button
     const submitButton = form.querySelector('button[type="submit"]');
     submitButton.focus();
@@ -691,7 +601,6 @@ class WeekDisplay extends HTMLElement {
       this.saveTasksToLocalStorage();
       this.tasks = this.loadTasksFromLocalStorage();
 
-      console.log(task);
 
       overlay.remove(); // Remove the overlay
       this.renderTasks(); // Re-render tasks
@@ -1003,8 +912,6 @@ class WeekDisplay extends HTMLElement {
         taskObj.endTime = initialEndTime + (heightChange / slotHeight) * 60;
       }
       taskEl.style.height = `${newHeight}px`;
-      this.saveTasksToLocalStorage();
-      this.tasks = this.loadTasksFromLocalStorage();
     };
 
     // Event listener for mouseup to stop resizing
@@ -1015,6 +922,7 @@ class WeekDisplay extends HTMLElement {
       if (taskObj.endTime > 1440) taskObj.endTime = 1440;
 
       this.saveTasksToLocalStorage();
+      this.tasks = this.loadTasksFromLocalStorage();
       this.renderTasks();
     };
 
@@ -1113,6 +1021,7 @@ class WeekDisplay extends HTMLElement {
   justify-content: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   border-radius: 2px;
+  text-align: center;
 }
 
 .day-header {
@@ -1668,7 +1577,6 @@ button.accentuated.dark-mode {
 }
 
 </style>
-
     
 <div class="container">
 
@@ -1678,8 +1586,6 @@ button.accentuated.dark-mode {
     <button class="today-btn"><i class="fas fa-calendar-day"></i></button>
 
     <div class="month-year-display accentuated"></div>
-
-    <button class="parameters-btn"> <i class="fas fa-cogs"></i> </button>
 
     <label class="switch">
       <input type="checkbox" id="dark-mode-toggle">

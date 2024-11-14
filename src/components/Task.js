@@ -1,12 +1,12 @@
 class Task {
-  constructor(id, date, title, startTime, endTime) {
+  constructor(id, date, title, startTime, endTime, description) {
     this._id = id;
     this._date = date;
     this._title = title;
     // time is stored in minutes 0 => 1440
     this._startTime = startTime;
     this._endTime = endTime;
-    this._description = "";
+    this._description = description;
   }
 
   get taskId() { return this._id; }
