@@ -56,8 +56,7 @@ class WeekDisplay extends HTMLElement {
     const elementsToToggle = this.shadowRoot.querySelectorAll(
       `.container, .calendar, .day-header, .time-header, .empty, 
       .navbar, .header-row, .container-time-label, button, 
-      .task, .remove-btn, .resize-handle, .title, .time, .description,
-      .task-list, .task-item, .close-btn, .current-day`
+      .current-day`
     );
     elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
     this.renderTasks();
@@ -131,8 +130,9 @@ class WeekDisplay extends HTMLElement {
     }
     // afficher mois nav bar
     const options = { year: 'numeric', month: 'long' };
-    const formattedDate = this.currentDate.toLocaleDateString('fr-FR', options);
+    let formattedDate = this.currentDate.toLocaleDateString('fr-FR', options);
     const monthYearDisplay = this.shadowRoot.querySelector('.month-year-display');
+    formattedDate = String(formattedDate).charAt(0).toUpperCase() + String(formattedDate).slice(1);
     monthYearDisplay.textContent = formattedDate;
   }
 
@@ -257,13 +257,8 @@ class WeekDisplay extends HTMLElement {
         // Assign the task to the found/created column
         columns[columnIndex].push(task);
 
-        let darkModeOn;
-        if (this.isDarkModeOn()) {
-          darkModeOn = "dark-mode";
-        }
-
         const taskEl = document.createElement("div");
-        taskEl.classList.add("task", `${darkModeOn}`);
+        taskEl.classList.add("task");
         taskEl.setAttribute("data-id", task.taskId);
 
         // Calculate task positions
@@ -279,19 +274,22 @@ class WeekDisplay extends HTMLElement {
         taskEl.style.height = `${height}px`;
 
         const title = document.createElement("div");
-        title.classList.add('title', `${darkModeOn}`);
+        title.classList.add('title');
         title.textContent = task.title;
         taskEl.appendChild(title);
 
         const time = document.createElement("div");
-        time.classList.add("time", `${darkModeOn}`);
+        time.classList.add("time");
         time.textContent = `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
         taskEl.appendChild(time);
 
         const description = document.createElement("div");
-        description.classList.add("description", `${darkModeOn}`);
+        description.classList.add("description");
         description.textContent = `${task.description}`;
         taskEl.appendChild(description);
+
+        // define color to elemnet
+        taskEl.style.backgroundColor = task.color;
 
         taskEl.addEventListener('click', (e) => {
           if (!e.target.classList.contains("resize-handle") &&
@@ -334,7 +332,8 @@ class WeekDisplay extends HTMLElement {
   loadTasksFromLocalStorage() {
     const storedJSON = JSON.parse(localStorage.getItem("tasks")) || [];
     return storedJSON.map(obj =>
-      new Task(obj._id, new Date(obj._date), obj._title, obj._startTime, obj._endTime, obj._description)
+      new Task(obj._id, new Date(obj._date), obj._title, obj._startTime, 
+      obj._endTime, obj._description, obj._color)
     );
   }
 
@@ -458,15 +457,17 @@ class WeekDisplay extends HTMLElement {
         taskEl.style.height = `${height}px`;
 
         const title = document.createElement("div");
-        title.classList.add('title', `${darkModeOn}`);
+        title.classList.add('title');
         title.textContent = task.title;
         taskEl.appendChild(title);
 
         const time = document.createElement("div");
-        time.classList.add("time", `${darkModeOn}`);
+        time.classList.add("time");
         time.textContent =
           `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
         taskEl.appendChild(time);
+
+        taskEl.style.backgroundColor = "#FFDD57";
 
         this.addResizeHandles(taskEl);
         this.addRemoveButton(taskEl);
@@ -520,6 +521,7 @@ class WeekDisplay extends HTMLElement {
   <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
   <div class="duration-display"></div>
   <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
+  <label>Task color: <input type="color" name="color" value="${task.color}" required></label>
   <button type="submit">Save</button>
   <div class="error-message"></div>
     `;
@@ -560,6 +562,7 @@ class WeekDisplay extends HTMLElement {
       const title = formData.get('title');
       const startTime = this.convertTimeToMinutes(formData.get('startTime'));
       let endTime = this.convertTimeToMinutes(formData.get('endTime'));
+      const color = formData.get('color');
       const errorMessageElement = form.querySelector('.error-message');
 
       // Clear previous error message
@@ -596,9 +599,11 @@ class WeekDisplay extends HTMLElement {
       task.description = formData.get('description');
       task.startTime = startTime;
       task.endTime = endTime;
+      task.color = color;
 
       this.saveTasksToLocalStorage();
       this.tasks = this.loadTasksFromLocalStorage();
+      console.log(this.tasks);
 
 
       overlay.remove(); // Remove the overlay
@@ -1083,7 +1088,6 @@ class WeekDisplay extends HTMLElement {
                                 /* TASK ELEMENT LAYOUT */
 .task {
   position: absolute;
-  background-color: #FFDD57;
   border-radius: 4px;
   text-align: center;
   z-index: 2;
