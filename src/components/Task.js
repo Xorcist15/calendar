@@ -1,5 +1,5 @@
 class Task {
-  constructor(id, date, title, startTime, endTime, description) {
+  constructor(id, date, title, startTime, endTime, description, color) {
     this._id = id;
     this._date = date;
     this._title = title;
@@ -7,6 +7,11 @@ class Task {
     this._startTime = startTime;
     this._endTime = endTime;
     this._description = description;
+    if(color == null) {
+      this._color = "#FFDD57";
+    } else {
+      this._color = color;
+    }
   }
 
   get taskId() { return this._id; }
@@ -25,6 +30,9 @@ class Task {
 
   get endTime() { return this._endTime; }
   set endTime(et) { this._endTime = et; }
+
+  get color() { return this._color; }
+  set color(c) { this._color = c; }
 
   get dayPosition() {
     const dayMap = {
