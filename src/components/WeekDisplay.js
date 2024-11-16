@@ -3,55 +3,77 @@ class WeekDisplay extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = this.getTemplate();
-    this.currentDate = this.getMonday(new Date());
 
+    this.currentDate = this.getMonday();
+    // initialise this.tasks avec les taches dans localstorage
+    // this.tasks contient les taches
     this.tasks = this.loadTasksFromLocalStorage();
+    
+    // action control variables
     this.isResizing = false;
     this.isCreatingTask = false;
-    this.interactiveNavbar();
   }
 
-  // Helper function to get the Monday of the current week
+  /**
+   * connectedCallback goes with constructor
+   * Runs automatically after constructor 
+   */
+  connectedCallback() {
+    this.interactiveNavbar();
+    this.populateWeekDates();
+    this.renderTimeSlots();
+    this.addCalendarListener();
+    this.createAndResizeTask();
+    this.renderTasks();
+  }
+
+                          // DATE MANIPULATION FUNCITONS
+  /**
+   * Get last monday 
+   * @returns lundi dernier
+   */
   getMonday() {
     const today = new Date();
     const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); 
     return new Date(today.setDate(diff));
   }
 
-  interactiveNavbar() {
-    // Add event listeners aux boutons
-    this.shadowRoot.querySelector('.prev-week-btn').
-      addEventListener('click', () => this.changeWeek(-1));
-    this.shadowRoot.querySelector('.today-btn').
-      addEventListener('click', () => this.goToToday());
-    this.shadowRoot.querySelector('.next-week-btn').
-      addEventListener('click', () => this.changeWeek(1));
-    this.shadowRoot.querySelector('#dark-mode-toggle').
-      addEventListener('click', () => this.toggleDarkMode());
-
-    // next week
-    const handleRightBtn = (event) => {
-      if (event.key === 'ArrowRight') { this.changeWeek(1); }
-    };
-    document.addEventListener('keydown', handleRightBtn);
-
-    // last week
-    const handleLeftBtn = (event) => {
-      if (event.key === 'ArrowLeft') { this.changeWeek(-1); }
-    };
-    document.addEventListener('keydown', handleLeftBtn);
-
-    // this week
-    const handleDownBtn = (event) => {
-      if (event.key === 'ArrowDown') { this.goToToday(); }
-    };
-    document.addEventListener('keydown', handleDownBtn);
+  /**
+   * @param direction direction de navigation dans les dates
+   * ensuite met a jour le calendrier
+   * */
+  changeWeek(direction) {
+    this.currentDate.setDate(this.currentDate.getDate() + direction * 7);
+    this.updateCalendar();
   }
 
-  /*
+  /**
+   * permet de revenir sur semaine actuelle grace a la fonction 
+   * this.getMonday qui retourne lundi derner
+   */
+  goToToday() {
+    this.currentDate = this.getMonday();
+    this.updateCalendar();
+  }
+
+  /**
+   * met a jour le calendrier avec la nouvelle date 
+   * choisie avec les boutons de navigation
+   */
+  updateCalendar() {
+    this.renderTimeSlots();
+    this.populateWeekDates();
+    this.renderTasks();
+  }
+
+                                                    // RENDERING FUNCITONS
+  /**
    * active mode sombre
-   * */
+   * selectionne tout les elements concernes dans le DOM html
+   * rajoute la classe dark-mode
+   * le css est ecrit dans la fonction this.getTemplate() 
+   */
   toggleDarkMode() {
     const elementsToToggle = this.shadowRoot.querySelectorAll(
       `.container, .calendar, .day-header, .time-header, .empty, 
@@ -62,42 +84,18 @@ class WeekDisplay extends HTMLElement {
     this.renderTasks();
   }
 
-  /*
-   * permettent la navigation 
-   * */
-  changeWeek(direction) {
-    this.currentDate.setDate(this.currentDate.getDate() + direction * 7);
-    this.updateCalendar();
-  }
-  goToToday() {
-    this.currentDate = this.getMonday(new Date());
-    this.updateCalendar();
-  }
-  updateCalendar() {
-    this.renderTimeSlots();
-    this.populateWeekDates();
-    this.renderTasks();
-  }
-  connectedCallback() {
-    this.renderTimeSlots();
-    this.addCalendarListener();
-    this.createAndResizeTask();
-    this.populateWeekDates();
-    this.renderTasks();
-  }
-
-  /*
-   * teste si mode sombre est actif
-   * */
+  /**
+   * teste si mode sombre est actuellement actif
+   */
   isDarkModeOn() {
     const nav = this.shadowRoot.querySelector('.navbar');
     if (nav.classList.contains("dark-mode")) return true;
     else return false;
   }
 
-  /*
-   * cree le grid du calendrier
-   * */
+  /**
+   * cree le grid avec les cases du calendrier
+   */
   renderTimeSlots() {
     const calendar = this.shadowRoot.querySelector('.calendar');
     const timeLabelCol = this.shadowRoot.querySelector('.time-label-col');
@@ -128,7 +126,7 @@ class WeekDisplay extends HTMLElement {
         calendar.appendChild(timeSlot);
       }
     }
-    // afficher mois nav bar
+    // afficher le mois et l'annee au nav bar
     const options = { year: 'numeric', month: 'long' };
     let formattedDate = this.currentDate.toLocaleDateString('fr-FR', options);
     const monthYearDisplay = this.shadowRoot.querySelector('.month-year-display');
@@ -136,24 +134,23 @@ class WeekDisplay extends HTMLElement {
     monthYearDisplay.textContent = formattedDate;
   }
 
-
+  /**
+   * reprend les day headers (contenant le nom et la date des jours)
+   * met les bonnes dates et les bons nom de jour
+   */
   populateWeekDates() {
     const headerRow = this.shadowRoot.querySelector(".header-row");
     const dayHeaders = headerRow.querySelectorAll(".day-header");
 
-    // Find Monday of the current week based on this.currentDate
     const dayOfWeek = this.currentDate.getDay();
     const monday = new Date(this.currentDate);
     monday.setDate(this.currentDate.getDate() - ((dayOfWeek + 6) % 7));
 
-    // Array of day names
     const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-    // Get today's date for comparison
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Populate each day header with the current date and day name
     dayHeaders.forEach((dayHeader, index) => {
       const currentDay = new Date(monday);
       currentDay.setDate(monday.getDate() + index); 
@@ -161,44 +158,38 @@ class WeekDisplay extends HTMLElement {
       const date = currentDay.toLocaleDateString("fr-FR");
       const dayName = dayNames[index];
 
-      // Combine day name and date
       dayHeader.textContent = `${dayName} ${date}`;
 
-      // Compare currentDay with today based on year, month, and day
       if (currentDay.getFullYear() === today.getFullYear() &&
         currentDay.getMonth() === today.getMonth() &&
         currentDay.getDate() === today.getDate()) {
-        dayHeader.classList.add("current-day"); // Add special class for today
+        dayHeader.classList.add("current-day"); 
       } else {
-        dayHeader.classList.remove("current-day"); // Remove the class if it's not today
+        dayHeader.classList.remove("current-day"); 
       }
     });
   }
 
-  // beautify numbers in day-headers
-  beautifyNumbers(n) {
-    const dateNumber = document.createElement("div");
-    dateNumber.classList.add("day-number");
-    dateNumber.textContent = n;
-    return dateNumber;
-  }
-
+  /**
+   * Fonction essentielle au fonctionnement du calendrier
+   * affiche les taches dans this.tasks
+   * en fonction de la date, le jour, la duree
+   * l'heure de debut et l'heure de fin
+   */
   renderTasks() {
     const calendar = this.shadowRoot.querySelector(".calendar");
     const calWidth = calendar.clientWidth;
     const calHeight = calendar.clientHeight;
     calendar.querySelectorAll(".task").forEach(taskEl => taskEl.remove());
 
-    // Get the height of a single time slot
     const slotHeight = this.shadowRoot.querySelector(".time-slot:not(.time-header)").clientHeight;
 
-    // Calculate the start of the current week (Monday) and the end of the week (next Monday)
     const startOfWeek = new Date(this.currentDate);
-    startOfWeek.setDate(this.currentDate.getDate() - this.currentDate.getDay() + 1); // Set to Monday
-    startOfWeek.setHours(0, 0, 0, 0); // Clear time for accurate comparison
+    startOfWeek.setDate(this.currentDate.getDate() - this.currentDate.getDay() + 1); 
+    startOfWeek.setHours(0, 0, 0, 0);
 
     const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 7); // Set to next Monday
+    endOfWeek.setDate(startOfWeek.getDate() + 7); 
 
 
     const filteredTasks = this.tasks.filter(task => {
@@ -206,18 +197,15 @@ class WeekDisplay extends HTMLElement {
       return taskDate >= startOfWeek && taskDate < endOfWeek;
     });
 
-    // Sort tasks by dayPosition and startTime
     filteredTasks.sort((a, b) => a.dayPosition - b.dayPosition || a.startTime - b.startTime);
 
-    // Array to hold arrays of tasks that collide on the same day
     const collidingTasks = [];
 
-    // Find colliding tasks
+    // trouve les collisions
     filteredTasks.forEach(task => {
       let collisionFound = false;
       for (let i = 0; i < collidingTasks.length; i++) {
         const group = collidingTasks[i];
-        // Check collision with all tasks in the group
         if (group[0].dayPosition === task.dayPosition &&
           group.some(t => (task.startTime < t.endTime && task.endTime > t.startTime))) {
           group.push(task);
@@ -230,7 +218,6 @@ class WeekDisplay extends HTMLElement {
       }
     });
 
-    // Function to check if two tasks collide
     function isColliding(task1, task2) {
       return task1.startTime < task2.endTime && task1.endTime > task2.startTime;
     }
@@ -239,29 +226,24 @@ class WeekDisplay extends HTMLElement {
     collidingTasks.forEach(group => {
       group.sort((a, b) => a.startTime - b.startTime);
 
-      // Initialize an array to track the column each task is assigned to
       const columns = [];
 
       group.forEach(task => {
-        // Find the first available column where this task doesn't collide
         let columnIndex = 0;
         while (columnIndex < columns.length && columns[columnIndex].some(t => isColliding(t, task))) {
           columnIndex++;
         }
 
-        // If no column is found, create a new one
         if (!columns[columnIndex]) {
           columns[columnIndex] = [];
         }
 
-        // Assign the task to the found/created column
         columns[columnIndex].push(task);
 
         const taskEl = document.createElement("div");
         taskEl.classList.add("task");
         taskEl.setAttribute("data-id", task.taskId);
 
-        // Calculate task positions
         const left = (task.dayPosition * calWidth) / 7 + (columnIndex * calWidth) / (7 * columns.length);
         const top = Math.max(((task.startTime / 1440) * calHeight), 0);
         const width = calWidth / (7 * columns.length);
@@ -269,6 +251,7 @@ class WeekDisplay extends HTMLElement {
         taskEl.style.left = `${(left / calWidth) * 100}%`;
         taskEl.style.width = `${(width / calWidth) * 100}%`;
         taskEl.style.top = `${top}px`;
+        taskEl.style.backgroundColor = task.color;
 
         const height = (task.duration / 60) * slotHeight;
         taskEl.style.height = `${height}px`;
@@ -288,8 +271,6 @@ class WeekDisplay extends HTMLElement {
         description.textContent = `${task.description}`;
         taskEl.appendChild(description);
 
-        // define color to elemnet
-        taskEl.style.backgroundColor = task.color;
 
         taskEl.addEventListener('click', (e) => {
           if (!e.target.classList.contains("resize-handle") &&
@@ -298,7 +279,6 @@ class WeekDisplay extends HTMLElement {
           }
         });
 
-        // Add resize handles to the task element
         this.addResizeHandles(taskEl);
         this.addRemoveButton(taskEl);
         this.dragAndDrop(taskEl, task);
@@ -308,6 +288,44 @@ class WeekDisplay extends HTMLElement {
     });
   }
 
+                                      // ADD EVENT LISTNERS FUNCTIONS
+  /**
+   * Attaches event listensers to navigation bar
+   * buttons and theme switcher
+   */
+  interactiveNavbar() {
+    // Add event listeners to buttons 
+    this.shadowRoot.querySelector('.prev-week-btn').
+      addEventListener('click', () => this.changeWeek(-1));
+    this.shadowRoot.querySelector('.today-btn').
+      addEventListener('click', () => this.goToToday());
+    this.shadowRoot.querySelector('.next-week-btn').
+      addEventListener('click', () => this.changeWeek(1));
+    this.shadowRoot.querySelector('#dark-mode-toggle').
+      addEventListener('click', () => this.toggleDarkMode());
+
+    // next week
+    const handleRightBtn = (event) => {
+      if (event.key === 'ArrowRight') { this.changeWeek(1); }
+    };
+    document.addEventListener('keydown', handleRightBtn);
+
+    // last week
+    const handleLeftBtn = (event) => {
+      if (event.key === 'ArrowLeft') { this.changeWeek(-1); }
+    };
+    document.addEventListener('keydown', handleLeftBtn);
+
+    // this week
+    const handleDownBtn = (event) => {
+      if (event.key === 'ArrowDown') { this.goToToday(); }
+    };
+    document.addEventListener('keydown', handleDownBtn);
+  }
+
+  /**
+   * execute createAndResizeTask when click sur calendrier (grid)
+   */
   addCalendarListener() {
     const calendar = this.shadowRoot.querySelector(".calendar");
     calendar.addEventListener("mousedown", (e) => {
@@ -328,7 +346,10 @@ class WeekDisplay extends HTMLElement {
     });
   }
 
-  // load tasks from local storage
+                                                  // LOCALSTORAGE FUNCTIONS
+  /**
+   * @returns liste des taches parse dans localstorage
+   */
   loadTasksFromLocalStorage() {
     const storedJSON = JSON.parse(localStorage.getItem("tasks")) || [];
     return storedJSON.map(obj =>
@@ -337,19 +358,19 @@ class WeekDisplay extends HTMLElement {
     );
   }
 
-  // save tasks to localStorage
+  /**
+   * sauvegarde this.tasks dans localstorage format JSON
+   */
   saveTasksToLocalStorage() {
-    localStorage.setItem('tasks', JSON.stringify(this.tasks));  // Store tasks in localStorage as a JSON string
-
+    localStorage.setItem('tasks', JSON.stringify(this.tasks));  
   }
 
-  // update changes and save tasks
-  updateTasks() {
-    this.saveTasksToLocalStorage();
-    this.tasks = this.loadTasksFromLocalStorage();
-  }
-
-
+                                                    // TASK MANIPULATION FUNCTIONS
+  /**
+   * attache au calendrier 
+   * cree tache onclick
+   * while holding mouse, resize task upward/downward
+   */
   createAndResizeTask() {
     const calendar = this.shadowRoot.querySelector(".calendar");
     let isDrawing = false;
@@ -436,7 +457,6 @@ class WeekDisplay extends HTMLElement {
         const description = "(untitled task)";
 
         task = new Task(taskId, taskDate, description, startTime, endTime, "");
-        // this.tasks.push(task);
 
         let darkModeOn;
         if (this.isDarkModeOn()) darkModeOn = "dark-mode";
@@ -502,208 +522,11 @@ class WeekDisplay extends HTMLElement {
     calendar.addEventListener('mousedown', onMouseDown);
   }
 
-
-  showTaskForm(task) {
-    if (this.isDragging) { return; }
-
-    // Create the overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'overlay';
-
-    let darkModeOn = this.isDarkModeOn() ? "dark-mode" : 'light-mode';
-
-    // Create the form
-    const form = document.createElement('form');
-    form.classList.add("form", `${darkModeOn}`);
-    // form.classList.add("form");
-    form.innerHTML = `
-<div class="form-close-button">✕</div>
-<label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
-<label>Title: <input type="text" name="title" value="${task.title}" required></label>
-<label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
-<label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
-<div class="duration-display"></div>
-<label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
-<div>
-  <p>Task color:</p>
-  <ul class="color-tags-container">
-    <li class="color-tags" data-color="#FFABAB" style="background-color: #FFABAB;"></li>
-    <li class="color-tags" data-color="#BFFCC6" style="background-color: #BFFCC6;"></li>
-    <li class="color-tags" data-color="#97A2FF" style="background-color: #97A2FF;"></li>
-    <li class="color-tags" data-color="#C4FAF8" style="background-color: #C4FAF8;"></li>
-    <li class="color-tags" data-color="#AFF8DB" style="background-color: #AFF8DB;"></li>
-    <li class="color-tags" data-color="#FF9CEE" style="background-color: #FF9CEE;"></li>
-    <li class="color-tags" data-color="#6EB5FF" style="background-color: #6EB5FF;"></li>
-    <li class="color-tags" data-color="#FFF5BA" style="background-color: #FFF5BA;"></li>
-  </ul>
-  <input type="hidden" name="color" id="color-input" value="${task.color}">
-</div>
-<button type="submit">Save</button>
-<div class="error-message"></div>
-    `;
-
-    // Focus on the submit button
-    const submitButton = form.querySelector('button[type="submit"]');
-    submitButton.focus();
-
-    // Function to update the duration display
-    const updateTimeDisplay = () => {
-        const startTimeInput = form.querySelector('input[name="startTime"]');
-        const endTimeInput = form.querySelector('input[name="endTime"]');
-        const durationDisplay = form.querySelector('.duration-display');
-
-        const startTime = this.convertTimeToMinutes(startTimeInput.value);
-        let endTime = this.convertTimeToMinutes(endTimeInput.value);
-
-        // If endTime is null or empty, set it to 1440 minutes (24:00)
-        if (!endTimeInput.value) {
-            endTime = 1440;
-        }
-
-        // Calculate duration
-        const duration = endTime - startTime;
-
-        // Update duration display
-        durationDisplay.textContent = duration > 0
-            ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
-            : 'Duration: 0 hours 0 minutes';
-    };
-
-    // Handle color selection
-    const colorInput = form.querySelector('#color-input');
-    form.querySelectorAll(".color-tags").forEach(btn => {
-        if (btn.getAttribute("data-color") === task.color) {
-            btn.classList.add('selected');
-        }
-        btn.addEventListener('click', () => {
-            form.querySelectorAll(".color-tags").forEach(el => el.classList.remove('selected'));
-            btn.classList.add('selected');
-            colorInput.value = btn.getAttribute("data-color");
-        });
-    });
-
-    // Handle form submission
-    // Handle form submission
-form.addEventListener('submit', (e) => {
-    e.preventDefault();
-
-    const formData = new FormData(form);
-    const date = formData.get('date');
-    const title = formData.get('title');
-    const startTime = this.convertTimeToMinutes(formData.get('startTime'));
-    let endTime = this.convertTimeToMinutes(formData.get('endTime'));
-    const color = formData.get('color');
-    const errorMessageElement = form.querySelector('.error-message');
-
-    // Clear previous error message
-    errorMessageElement.style.display = 'none';
-    errorMessageElement.textContent = '';
-
-    // Validation checks
-    const selectedDate = new Date(date);
-    if (isNaN(selectedDate.getTime())) {
-        errorMessageElement.textContent = 'Please select a valid date.';
-        errorMessageElement.style.display = 'block';
-        return;
-    }
-
-    if (startTime < 0 || startTime > 1440) {
-        errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
-        errorMessageElement.style.display = 'block';
-        return;
-    }
-    if (endTime < 0 || endTime > 1440) {
-        errorMessageElement.textContent = 'End time must be between 00:00 and 24:00.';
-        errorMessageElement.style.display = 'block';
-        return;
-    }
-    if (endTime <= startTime) {
-        errorMessageElement.textContent = 'End time must be greater than start time.';
-        errorMessageElement.style.display = 'block';
-        return;
-    }
-
-    // Find the index of the task in the tasks array
-    const taskIndex = this.tasks.findIndex(t => t.taskId == task.taskId);
-
-    if (taskIndex > -1) {
-        // Update existing task
-        this.tasks[taskIndex].title = title;
-        this.tasks[taskIndex].date = selectedDate;
-        this.tasks[taskIndex].description = formData.get('description');
-        this.tasks[taskIndex].startTime = startTime;
-        this.tasks[taskIndex].endTime = endTime;
-        this.tasks[taskIndex].color = color;
-    } else {
-        // Add new task if it doesn't exist
-        task.title = title;
-        task.date = selectedDate;
-        task.description = formData.get('description');
-        task.startTime = startTime;
-        task.endTime = endTime;
-        task.color = color;
-        this.tasks.push(task);
-    }
-    console.log(this.tasks)
-
-    this.saveTasksToLocalStorage();
-    this.tasks = this.loadTasksFromLocalStorage();
-
-    overlay.remove(); // Remove the overlay
-    this.renderTasks(); // Re-render tasks
-  });
-
-
-    // Close the form on Escape key press
-    const closeForm = (e) => {
-        if (e.key === 'Escape') {
-            overlay.remove(); // Remove the overlay
-            document.removeEventListener('keydown', closeForm); // Clean up the event listener
-        }
-    };
-    const closeBtn = form.querySelector(".form-close-button");
-    closeBtn.addEventListener("click", () => {
-        overlay.remove(); // Remove the overlay
-        document.removeEventListener('keydown', closeForm); // Clean up the event listener
-    });
-
-    // Add event listener for Escape key
-    document.addEventListener('keydown', closeForm);
-
-    // Append the form to the overlay
-    overlay.appendChild(form);
-
-    // Append the overlay to the shadow root
-    this.shadowRoot.appendChild(overlay);
-
-    // Initial update of the time display and duration
-    updateTimeDisplay();
-  }
-
-
-  // Helper function to format the date to 'YYYY-MM-DD'
-  formatDate(dateString) {
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  // Helper method to convert minutes to time format (HH:MM)
-  convertMinutesToTime(minutes) {
-    const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
-    const mins = String(minutes % 60).padStart(2, '0');
-    return `${hours}:${mins}`;
-  }
-
-  // Helper method to convert time format (HH:MM) to minutes
-  convertTimeToMinutes(time) {
-    const [hours, minutes] = time.split(':').map(Number);
-
-    return hours * 60 + minutes;
-  }
-
+  /**
+   * drag tasks and drop them else where with mouse
+   * @param {*} taskEl reference element html a modifer les prop top et height
+   * @param {*} task   reference objet task, modifier les properties
+   */
   dragAndDrop(taskEl, task) {
     const calendar = this.shadowRoot.querySelector(".calendar");
     const dragThreshold = 5;
@@ -733,12 +556,11 @@ form.addEventListener('submit', (e) => {
       const clickDuration = mouseUpTime - mouseDownTime;
 
       if (clickDuration < 50) {
-        // Short click - do nothing
+        // short click - do nothing
       } else if (isDragging) {
         const rect = taskEl.getBoundingClientRect();
         const calendarRect = calendar.getBoundingClientRect();
 
-        // Ensure the task is within the bounds of the calendar
         if (rect.top < calendarRect.top) {
           taskEl.style.top = `0px`;
         }
@@ -749,12 +571,10 @@ form.addEventListener('submit', (e) => {
           taskEl.style.left = `${calendar.clientWidth - taskEl.offsetWidth}px`;
         }
 
-        // Calculate the correct top property relative to the calendar
         let taskTop = taskEl.getBoundingClientRect().top - calendarRect.top;
         let startTime = Math.max(Math.floor((taskTop / calendar.clientHeight) * 1440), 0);
         startTime = Math.round(startTime / 15) * 15;
 
-        // Ensure startTime is not negative
         if (startTime < 0) {
           startTime = 0;
         }
@@ -762,21 +582,17 @@ form.addEventListener('submit', (e) => {
         const dayWidth = calendar.clientWidth / 7;
         let clientX = e.clientX;
 
-        // Adjust clientX to prevent exceeding calendar boundaries
         if (clientX < 70) {
           clientX = 70;
         } else if (clientX > calendar.clientWidth) {
           clientX = calendar.clientWidth;
         }
 
-        // Calculate the index of the day based on the current week's Monday
         const dayIndex = Math.floor((clientX - calendarRect.left) / dayWidth);
 
-        // Calculate the new date based on the current week's Monday
         const newDate = new Date(this.currentDate);
         newDate.setDate(this.currentDate.getDate() + dayIndex);
 
-        // Adjust startTime to ensure the task's endTime is within the day
         let endTime = startTime + task.duration;
         if (endTime > 1440) { // 1440 minutes = 24 hours
           endTime = 1440;
@@ -787,7 +603,6 @@ form.addEventListener('submit', (e) => {
         taskObj.startTime = startTime;
         taskObj.endTime = endTime;
 
-        // Update taskEl's top position
         taskTop = (startTime / 1440) * calendar.clientHeight;
         taskEl.style.top = `${taskTop}px`;
 
@@ -822,7 +637,12 @@ form.addEventListener('submit', (e) => {
     taskEl.addEventListener('mousedown', onMouseDown);
   }
 
-  // Calculates position within the calendar grid
+  /**
+   * 
+   * @param {*} e evennement
+   * @param {*} context soit resize ou create le calcul differe
+   * @returns calcule et retourne la position x et y relatif a l'elemenet calendrier (grid)
+   */
   calculatePosition(e, context) {
     const calendar = this.shadowRoot.querySelector(".calendar");
     const rect = calendar.getBoundingClientRect();
@@ -855,12 +675,168 @@ form.addEventListener('submit', (e) => {
     return { x, y, dayIndex };
   }
 
-  formatTime(minutes) {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  /**
+   * affiche un formulaire taches onclick
+   * @param {*} task trouve la tache a modifier
+   */
+  showTaskForm(task) {
+    if (this.isDragging) { return; }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+
+    let darkModeOn = this.isDarkModeOn() ? "dark-mode" : 'light-mode';
+
+    const form = document.createElement('form');
+    form.classList.add("form", `${darkModeOn}`);
+    form.innerHTML = `
+<div class="form-close-button">✕</div>
+<label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
+<label>Title: <input type="text" name="title" value="${task.title}" required></label>
+<label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
+<label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
+<div class="duration-display"></div>
+<label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
+<div>
+  <p>Task color:</p>
+  <ul class="color-tags-container">
+    <li class="color-tags" data-color="#FFABAB" style="background-color: #FFABAB;"></li>
+    <li class="color-tags" data-color="#BFFCC6" style="background-color: #BFFCC6;"></li>
+    <li class="color-tags" data-color="#97A2FF" style="background-color: #97A2FF;"></li>
+    <li class="color-tags" data-color="#C4FAF8" style="background-color: #C4FAF8;"></li>
+    <li class="color-tags" data-color="#AFF8DB" style="background-color: #AFF8DB;"></li>
+    <li class="color-tags" data-color="#FF9CEE" style="background-color: #FF9CEE;"></li>
+    <li class="color-tags" data-color="#6EB5FF" style="background-color: #6EB5FF;"></li>
+    <li class="color-tags" data-color="#FFF5BA" style="background-color: #FFF5BA;"></li>
+  </ul>
+  <input type="hidden" name="color" id="color-input" value="${task.color}">
+</div>
+<button type="submit">Save</button>
+<div class="error-message"></div>
+    `;
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.focus();
+
+    const updateTimeDisplay = () => {
+        const startTimeInput = form.querySelector('input[name="startTime"]');
+        const endTimeInput = form.querySelector('input[name="endTime"]');
+        const durationDisplay = form.querySelector('.duration-display');
+
+        const startTime = this.convertTimeToMinutes(startTimeInput.value);
+        let endTime = this.convertTimeToMinutes(endTimeInput.value);
+
+        if (!endTimeInput.value) {
+            endTime = 1440;
+        }
+
+        const duration = endTime - startTime;
+
+        durationDisplay.textContent = duration > 0
+            ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
+            : 'Duration: 0 hours 0 minutes';
+    };
+
+    const colorInput = form.querySelector('#color-input');
+    form.querySelectorAll(".color-tags").forEach(btn => {
+        if (btn.getAttribute("data-color") === task.color) {
+            btn.classList.add('selected');
+        }
+        btn.addEventListener('click', () => {
+            form.querySelectorAll(".color-tags").forEach(el => el.classList.remove('selected'));
+            btn.classList.add('selected');
+            colorInput.value = btn.getAttribute("data-color");
+        });
+    });
+
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const date = formData.get('date');
+    const title = formData.get('title');
+    const startTime = this.convertTimeToMinutes(formData.get('startTime'));
+    let endTime = this.convertTimeToMinutes(formData.get('endTime'));
+    const color = formData.get('color');
+    const errorMessageElement = form.querySelector('.error-message');
+
+    errorMessageElement.style.display = 'none';
+    errorMessageElement.textContent = '';
+
+    const selectedDate = new Date(date);
+    if (isNaN(selectedDate.getTime())) {
+        errorMessageElement.textContent = 'Please select a valid date.';
+        errorMessageElement.style.display = 'block';
+        return;
+    }
+
+    if (startTime < 0 || startTime > 1440) {
+        errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
+        errorMessageElement.style.display = 'block';
+        return;
+    }
+    if (endTime < 0 || endTime > 1440) {
+        errorMessageElement.textContent = 'End time must be between 00:00 and 24:00.';
+        errorMessageElement.style.display = 'block';
+        return;
+    }
+    if (endTime <= startTime) {
+        errorMessageElement.textContent = 'End time must be greater than start time.';
+        errorMessageElement.style.display = 'block';
+        return;
+    }
+
+    const taskIndex = this.tasks.findIndex(t => t.taskId == task.taskId);
+
+    if (taskIndex > -1) {
+        // met a jour les info si la tache existe
+        this.tasks[taskIndex].title = title;
+        this.tasks[taskIndex].date = selectedDate;
+        this.tasks[taskIndex].description = formData.get('description');
+        this.tasks[taskIndex].startTime = startTime;
+        this.tasks[taskIndex].endTime = endTime;
+        this.tasks[taskIndex].color = color;
+    } else {
+        // cree une nouvelle tache et push dans this.tasks
+        task.title = title;
+        task.date = selectedDate;
+        task.description = formData.get('description');
+        task.startTime = startTime;
+        task.endTime = endTime;
+        task.color = color;
+        this.tasks.push(task);
+    }
+
+    this.saveTasksToLocalStorage();
+    this.tasks = this.loadTasksFromLocalStorage();
+
+    overlay.remove(); 
+    this.renderTasks(); 
+  });
+
+    const closeForm = (e) => {
+        if (e.key === 'Escape') {
+            overlay.remove(); 
+            document.removeEventListener('keydown', closeForm); 
+        }
+    };
+    const closeBtn = form.querySelector(".form-close-button");
+    closeBtn.addEventListener("click", () => {
+        overlay.remove();
+        document.removeEventListener('keydown', closeForm); 
+    });
+
+    document.addEventListener('keydown', closeForm);
+    overlay.appendChild(form);
+    this.shadowRoot.appendChild(overlay);
+
+    updateTimeDisplay();
   }
 
+  /**
+   * ajoute btn de suppression a la tache
+   * @param {*} taskEl reference elemnt html
+   */
   addRemoveButton(taskEl) {
     const removeBtn = document.createElement("div");
     let darkModeOn;
@@ -889,6 +865,10 @@ form.addEventListener('submit', (e) => {
     taskEl.appendChild(removeBtn);
   }
 
+  /**
+   * Adds resizing handles to task html element
+   * @param {*} taskEl ref elemnt html
+   */
   addResizeHandles(taskEl) {
     const topHandle = document.createElement("div");
     const bottomHandle = document.createElement("div");
@@ -910,6 +890,11 @@ form.addEventListener('submit', (e) => {
     taskEl.appendChild(bottomHandle);
   }
 
+  /**
+   * allows for using resize handles to resize
+   * the html elment
+   * @param {*} e evennement
+   */
   resize(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -931,7 +916,6 @@ form.addEventListener('submit', (e) => {
     let initialStartTime = taskObj.startTime;
     let initialEndTime = taskObj.endTime;
 
-    // Event listener for mousemove to update the height
     const onMouseMove = (moveEvent) => {
       let currentY = this.calculatePosition(moveEvent, "resize").y;
       const heightChange = currentY - initY;
@@ -940,14 +924,12 @@ form.addEventListener('submit', (e) => {
       if (direction === "top") {
         newHeight = initialHeight - heightChange;
         let newTop = initialTop + heightChange;
-        // Ensure minimum height
         if (newHeight < minTaskHeight) {
           newHeight = minTaskHeight;
           newTop = initialTop + (initialHeight - minTaskHeight);
         }
         taskEl.style.top = `${newTop}px`;
 
-        // Calculate new start time based on the top handle movement
         taskObj.startTime = initialStartTime + (heightChange / slotHeight) * 60;
 
       } else if (direction == "bottom") {
@@ -956,13 +938,11 @@ form.addEventListener('submit', (e) => {
         } else if (currentY >= calHeight) {
           currentY = calHeight;
         }
-        // Calculate new end time based on the bottom handle movement
         taskObj.endTime = initialEndTime + (heightChange / slotHeight) * 60;
       }
       taskEl.style.height = `${newHeight}px`;
     };
 
-    // Event listener for mouseup to stop resizing
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
@@ -974,13 +954,14 @@ form.addEventListener('submit', (e) => {
       this.renderTasks();
     };
 
-    // Add event listeners
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   }
 
-
-  // Gets the dimensions for a single slot in the calendar
+  /**
+   * dimensions des slots qui composent le grid du calendrier 
+   * @returns {width, height}
+   */
   getSlotDimensions() {
     const slot = this.shadowRoot.
       querySelector(".time-slot:not(.time-header)");
@@ -990,41 +971,55 @@ form.addEventListener('submit', (e) => {
     };
   }
 
-
-  initParametersButton() {
-    const parametersContainer = this.shadowRoot.querySelector('.parameters-container');
-    const parametersWindow = document.createElement('div');
-    parametersWindow.classList.add('parameters-window');
-    parametersWindow.innerHTML = `
-    `;
-    parametersContainer.appendChild(parametersWindow);
-
-    // Add event listeners
-    const parametersBtn = this.shadowRoot.querySelector('.parameters-btn');
-
-    parametersBtn.addEventListener('mouseover', () => {
-      parametersWindow.style.display = 'block';
-    });
-
-    parametersBtn.addEventListener('mouseout', () => {
-      parametersWindow.style.display = 'none';
-    });
-
-    parametersWindow.addEventListener('mouseover', () => {
-      parametersWindow.style.display = 'block';
-    });
-
-    parametersWindow.addEventListener('mouseout', () => {
-      parametersWindow.style.display = 'none';
-    });
+                                                            // FORMATTING FUNCTIONS
+  /**
+   * formate la date pour rajouter a l'attribut value dans le form html
+   * de this.showTaskForm();
+   * @param {*} dateString 
+   * @returns date formattee
+   */
+  formatDate(dateString) {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0'); 
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
+  /**
+   * @param {*} minutes 
+   * @returns formatee en heure
+   */
+  convertMinutesToTime(minutes) {
+    const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
+    const mins = String(minutes % 60).padStart(2, '0');
+    return `${hours}:${mins}`;
+  }
 
+  /**
+   * @param {*} time 
+   * @returns calcule en minutes
+   */
+  convertTimeToMinutes(time) {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
 
-
+  /**
+   * @param {*} minutes 
+   * @returns heure formatee
+   */
+  formatTime(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  }
+  
+  /**
+   * @returns html de base pour le web componenet
+   */
   getTemplate() {
     return `
-
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
 :host {
@@ -1655,6 +1650,19 @@ button.accentuated.dark-mode {
     <button class="today-btn"><i class="fas fa-calendar-day"></i></button>
 
     <div class="month-year-display accentuated"></div>
+
+    <div>
+      <ul class="color-tags-container">
+        <li class="color-tags" data-color="#FFABAB" style="background-color: #FFABAB;"></li>
+        <li class="color-tags" data-color="#BFFCC6" style="background-color: #BFFCC6;"></li>
+        <li class="color-tags" data-color="#97A2FF" style="background-color: #97A2FF;"></li>
+        <li class="color-tags" data-color="#C4FAF8" style="background-color: #C4FAF8;"></li>
+        <li class="color-tags" data-color="#AFF8DB" style="background-color: #AFF8DB;"></li>
+        <li class="color-tags" data-color="#FF9CEE" style="background-color: #FF9CEE;"></li>
+        <li class="color-tags" data-color="#6EB5FF" style="background-color: #6EB5FF;"></li>
+        <li class="color-tags" data-color="#FFF5BA" style="background-color: #FFF5BA;"></li>
+      </ul>
+    </div>
 
     <label class="switch">
       <input type="checkbox" id="dark-mode-toggle">

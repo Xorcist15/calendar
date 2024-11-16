@@ -7,6 +7,7 @@ class Task {
     this._startTime = startTime;
     this._endTime = endTime;
     this._description = description;
+    // if color is undefined, set to defautl color
     if(color == null) {
       this._color = "#FFDD57";
     } else {
@@ -17,13 +18,11 @@ class Task {
   get taskId() { return this._id; }
   set taskId(id) { this._id = id; }
 
+  get date() { return this._date; };
+  set date(d) { this._date = d; };
+
   get title() { return this._title; }
   set title(t) { this._title = t; }
-
-  get description() { return this._description; }
-  set description(d) { this._description = d; }
-
-  get duration() { return this._endTime - this._startTime; }
 
   get startTime() { return this._startTime; }
   set startTime(st) { this._startTime = st; }
@@ -31,9 +30,17 @@ class Task {
   get endTime() { return this._endTime; }
   set endTime(et) { this._endTime = et; }
 
+  get description() { return this._description; }
+  set description(d) { this._description = d; }
+
   get color() { return this._color; }
   set color(c) { this._color = c; }
 
+  get duration() { return this._endTime - this._startTime; }
+
+  /**
+   * returns day position based on day
+   */
   get dayPosition() {
     const dayMap = {
       "Monday": 0,
@@ -48,7 +55,4 @@ class Task {
       ._date.toLocaleString("en-US", { weekday: "long" });
     return dayMap[dayName];
   }
-
-  get date() { return this._date; };
-  set date(d) { this._date = d; };
 }
