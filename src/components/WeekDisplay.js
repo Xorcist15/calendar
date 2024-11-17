@@ -3,24 +3,374 @@ class WeekDisplay extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = this.getTemplate();
-    this.currentDate = this.getMonday(new Date());
 
+    this.selectedColors = new Set();
+
+    this.currentDate = this.getMonday();
+    // initialise this.tasks avec les taches dans localstorage
+    // this.tasks contient les taches
     this.tasks = this.loadTasksFromLocalStorage();
+    
+    // action control variables
     this.isResizing = false;
     this.isCreatingTask = false;
-    this.interactiveNavbar();
   }
 
-  // Helper function to get the Monday of the current week
+  /**
+   * connectedCallback goes with constructor
+   * Runs automatically after constructor 
+   */
+  connectedCallback() {
+    this.interactiveNavbar();
+    this.populateWeekDates();
+    this.renderTimeSlots();
+    this.addCalendarListener();
+    this.createAndResizeTask();
+    this.renderTasks();
+    this.addColorTagListeners();
+    this.toggleDarkMode();
+  }
+
+                          // DATE MANIPULATION FUNCITONS
+  /**
+   * Get last monday 
+   * @returns lundi dernier
+   */
   getMonday() {
     const today = new Date();
     const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); 
     return new Date(today.setDate(diff));
   }
 
+  /**
+   * @param direction direction de navigation dans les dates
+   * ensuite met a jour le calendrier
+   * */
+  changeWeek(direction) {
+    this.currentDate.setDate(this.currentDate.getDate() + direction * 7);
+    this.updateCalendar();
+  }
+
+  /**
+   * permet de revenir sur semaine actuelle grace a la fonction 
+   * this.getMonday qui retourne lundi derner
+   */
+  goToToday() {
+    this.currentDate = this.getMonday();
+    this.updateCalendar();
+  }
+
+  /**
+   * met a jour le calendrier avec la nouvelle date 
+   * choisie avec les boutons de navigation
+   */
+  updateCalendar() {
+    this.renderTimeSlots();
+    this.populateWeekDates();
+    this.renderTasks();
+  }
+
+                                                    // RENDERING FUNCITONS
+  /**
+   * active mode sombre
+   * selectionne tout les elements concernes dans le DOM html
+   * rajoute la classe dark-mode
+   * le css est ecrit dans la fonction this.getTemplate() 
+   */
+  toggleDarkMode() {
+    const themeState = this.shadowRoot.querySelector(".theme-state");
+    const darkModeToggle = this.shadowRoot.querySelector("#dark-mode-toggle");
+
+    darkModeToggle.addEventListener('change', () => {
+      themeState.textContent = darkModeToggle.checked ? "Mode sombre" : "Mode clair";
+    });
+
+    const elementsToToggle = this.shadowRoot.querySelectorAll(
+      `.container, .calendar, .day-header, .time-header, .empty, 
+      .navbar, .header-row, .container-time-label, button, 
+      .current-day, .theme-switch-container, .color-tags-container`
+    );
+    elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
+    this.renderTasks();
+  }
+
+  /**
+   * teste si mode sombre est actuellement actif
+   */
+  isDarkModeOn() {
+    const nav = this.shadowRoot.querySelector('.navbar');
+    if (nav.classList.contains("dark-mode")) return true;
+    else return false;
+  }
+
+  /**
+   * cree le grid avec les cases du calendrier
+   */
+  renderTimeSlots() {
+    const calendar = this.shadowRoot.querySelector('.calendar');
+    const timeLabelCol = this.shadowRoot.querySelector('.time-label-col');
+    const titleInfo = "Cliquez pour créer une tâche"
+
+    const currentTimeSlots = calendar.querySelectorAll(".time-slot");
+    currentTimeSlots.forEach(cts => cts.remove());
+
+    const currentTimeLabels = timeLabelCol.querySelectorAll('.time-header');
+    currentTimeLabels.forEach(ctl => ctl.remove());
+
+    let darkModeOn;
+
+    if (this.isDarkModeOn()) {
+      darkModeOn = "dark-mode";
+    }
+
+    for (let hour = 0; hour < 24; hour++) {
+      const timeLabel = document.createElement('div');
+      timeLabel.classList.add('time-slot', 'time-header', `${darkModeOn}`);
+      timeLabel.textContent = `${hour}:00`;
+      timeLabelCol.appendChild(timeLabel);
+
+      for (let day = 0; day < 7; day++) {
+        const timeSlot = document.createElement('div');
+        timeSlot.classList.add("time-slot");
+        timeSlot.setAttribute('data-hour', hour);
+        timeSlot.setAttribute('data-day', day);
+        timeSlot.setAttribute('title', titleInfo);
+        calendar.appendChild(timeSlot);
+      }
+    }
+    // afficher le mois et l'annee au nav bar
+    const options = { year: 'numeric', month: 'long' };
+    let formattedDate = this.currentDate.toLocaleDateString('fr-FR', options);
+    const monthYearDisplay = this.shadowRoot.querySelector('.month-year-display');
+    formattedDate = String(formattedDate).charAt(0).toUpperCase() + String(formattedDate).slice(1);
+    monthYearDisplay.textContent = formattedDate;
+  }
+
+  /**
+   * reprend les day headers (contenant le nom et la date des jours)
+   * met les bonnes dates et les bons nom de jour
+   */
+  populateWeekDates() {
+    const headerRow = this.shadowRoot.querySelector(".header-row");
+    const dayHeaders = headerRow.querySelectorAll(".day-header");
+
+    const dayOfWeek = this.currentDate.getDay();
+    const monday = new Date(this.currentDate);
+    monday.setDate(this.currentDate.getDate() - ((dayOfWeek + 6) % 7));
+
+    const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    dayHeaders.forEach((dayHeader, index) => {
+      const currentDay = new Date(monday);
+      currentDay.setDate(monday.getDate() + index); 
+
+      const date = currentDay.toLocaleDateString("fr-FR");
+      const dayName = dayNames[index];
+
+      dayHeader.textContent = `${dayName} ${date}`;
+
+      if (currentDay.getFullYear() === today.getFullYear() &&
+        currentDay.getMonth() === today.getMonth() &&
+        currentDay.getDate() === today.getDate()) {
+        dayHeader.classList.add("current-day"); 
+        dayHeader.textContent += " (Auj)";
+      } else {
+        dayHeader.classList.remove("current-day"); 
+      }
+    });
+  }
+
+  /**
+   * Fonction essentielle au fonctionnement du calendrier
+   * affiche les taches dans this.tasks
+   * en fonction de la date, le jour, la duree
+   * l'heure de debut et l'heure de fin
+   */
+  renderTasks() {
+    const calendar = this.shadowRoot.querySelector(".calendar");
+    const calWidth = calendar.clientWidth;
+    const calHeight = calendar.clientHeight;
+
+    const slotHeight = this.shadowRoot.querySelector(".time-slot:not(.time-header)").clientHeight;
+
+    const startOfWeek = new Date(this.currentDate);
+    startOfWeek.setDate(this.currentDate.getDate() - this.currentDate.getDay() + 1); 
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7); 
+
+    const filteredTasks = this.tasks.filter(task => {
+        const taskDate = new Date(task.date);
+        const isWithinWeek = taskDate >= startOfWeek && taskDate < endOfWeek;
+        const isSelectedColor = this.selectedColors.size === 0 || this.selectedColors.has(task.color);
+        return isWithinWeek && isSelectedColor;
+    });
+
+    filteredTasks.sort((a, b) => a.dayPosition - b.dayPosition || a.startTime - b.startTime);
+
+    const collidingTasks = [];
+
+    filteredTasks.forEach(task => {
+        let collisionFound = false;
+        for (let i = 0; i < collidingTasks.length; i++) {
+            const group = collidingTasks[i];
+            if (group[0].dayPosition === task.dayPosition &&
+                group.some(t => (task.startTime < t.endTime && task.endTime > t.startTime))) {
+                group.push(task);
+                collisionFound = true;
+                break;
+            }
+        }
+        if (!collisionFound) {
+            collidingTasks.push([task]);
+        }
+    });
+
+    function isColliding(task1, task2) {
+        return task1.startTime < task2.endTime && task2.startTime < task1.endTime;
+    }
+
+    // Handle task removal and animation
+    let anyTaskMatches = false;
+    const taskElements = calendar.querySelectorAll(".task");
+
+    // Use a Set to track IDs of tasks to remove
+    const tasksToRemove = new Set([...taskElements].map(el => el.getAttribute("data-id")));
+
+    filteredTasks.forEach(task => {
+        anyTaskMatches = true;
+        tasksToRemove.delete(task.taskId);
+    });
+
+    taskElements.forEach(taskEl => {
+        const taskId = taskEl.getAttribute("data-id");
+        if (tasksToRemove.has(taskId)) {
+            taskEl.classList.add("fade-out");
+            taskEl.addEventListener('transitionend', () => {
+                taskEl.remove();
+            });
+        }
+    });
+
+    collidingTasks.forEach(group => {
+        group.sort((a, b) => a.startTime - b.startTime);
+
+        const columns = [];
+
+        group.forEach(task => {
+            let columnIndex = 0;
+            while (columnIndex < columns.length && columns[columnIndex].some(t => isColliding(t, task))) {
+                columnIndex++;
+            }
+
+            if (!columns[columnIndex]) {
+                columns[columnIndex] = [];
+            }
+
+            columns[columnIndex].push(task);
+
+            const taskEl = document.createElement("div");
+            taskEl.classList.add("task");
+            taskEl.setAttribute("data-id", task.taskId);
+            taskEl.setAttribute("data-color", task.color);
+
+            const left = (task.dayPosition * calWidth) / 7 + (columnIndex * calWidth) / (7 * columns.length);
+            const top = Math.max(((task.startTime / 1440) * calHeight), 0);
+            const width = calWidth / (7 * columns.length);
+
+            taskEl.style.left = `${(left / calWidth) * 100}%`;
+            taskEl.style.width = `${(width / calWidth) * 100}%`;
+            taskEl.style.top = `${top}px`;
+            taskEl.style.backgroundColor = task.color;
+
+            const height = (task.duration / 60) * slotHeight;
+            taskEl.style.height = `${height}px`;
+
+            if (this.colorTagsUpdated && !anyTaskMatches) {
+                taskEl.classList.add("fade-in");
+            }
+
+            const title = document.createElement("div");
+            title.classList.add('title');
+            title.textContent = task.title;
+            taskEl.appendChild(title);
+
+            const time = document.createElement("div");
+            time.classList.add("time");
+            time.textContent = `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
+            taskEl.appendChild(time);
+
+            const description = document.createElement("div");
+            description.classList.add("description");
+            description.textContent = task.description;
+            taskEl.appendChild(description);
+
+            let isDraggingOrResizing = false;
+
+            taskEl.addEventListener('mousedown', () => {
+                isDraggingOrResizing = false;
+            });
+
+            taskEl.addEventListener('mousemove', () => {
+                isDraggingOrResizing = true;
+            });
+
+            taskEl.addEventListener('mouseup', (e) => {
+                if (!isDraggingOrResizing) {
+                    if (!e.target.classList.contains("resize-handle") &&
+                        !e.target.classList.contains("remove-btn")) {
+                        this.showTaskForm(task, taskEl);
+                    }
+                }
+                isDraggingOrResizing = false;
+            });
+
+            this.addResizeHandles(taskEl);
+            this.addRemoveButton(taskEl);
+            this.dragAndDrop(taskEl, task);
+
+            calendar.appendChild(taskEl);
+        });
+    });
+
+    this.colorTagsUpdated = false;  // Reset flag after rendering tasks
+  }
+
+
+                                      // ADD EVENT LISTNERS FUNCTIONS
+ /**
+  * add listeners to nav bar colors
+  */
+  addColorTagListeners() {
+    this.shadowRoot.querySelectorAll('.color-tags').forEach(tag => {
+        tag.addEventListener('click', () => {
+            const color = tag.getAttribute('data-color');
+
+            if (this.selectedColors.has(color)) {
+                this.selectedColors.delete(color);
+                tag.classList.remove('selected');
+            } else {
+                this.selectedColors.add(color);
+                tag.classList.add('selected');
+            }
+
+            this.colorTagsUpdated = true;  
+            this.renderTasks();
+        });
+    });
+  }
+
+  /**
+   * Attaches event listensers to navigation bar
+   * buttons and theme switcher
+   */
   interactiveNavbar() {
-    // Add event listeners aux boutons
+    // Add event listeners to buttons 
     this.shadowRoot.querySelector('.prev-week-btn').
       addEventListener('click', () => this.changeWeek(-1));
     this.shadowRoot.querySelector('.today-btn').
@@ -49,265 +399,9 @@ class WeekDisplay extends HTMLElement {
     document.addEventListener('keydown', handleDownBtn);
   }
 
-  /*
-   * active mode sombre
-   * */
-  toggleDarkMode() {
-    const elementsToToggle = this.shadowRoot.querySelectorAll(
-      `.container, .calendar, .day-header, .time-header, .empty, 
-      .navbar, .header-row, .container-time-label, button, 
-      .current-day`
-    );
-    elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
-    this.renderTasks();
-  }
-
-  /*
-   * permettent la navigation 
-   * */
-  changeWeek(direction) {
-    this.currentDate.setDate(this.currentDate.getDate() + direction * 7);
-    this.updateCalendar();
-  }
-  goToToday() {
-    this.currentDate = this.getMonday(new Date());
-    this.updateCalendar();
-  }
-  updateCalendar() {
-    this.renderTimeSlots();
-    this.populateWeekDates();
-    this.renderTasks();
-  }
-  connectedCallback() {
-    this.renderTimeSlots();
-    this.addCalendarListener();
-    this.createAndResizeTask();
-    this.populateWeekDates();
-    this.renderTasks();
-  }
-
-  /*
-   * teste si mode sombre est actif
-   * */
-  isDarkModeOn() {
-    const nav = this.shadowRoot.querySelector('.navbar');
-    if (nav.classList.contains("dark-mode")) return true;
-    else return false;
-  }
-
-  /*
-   * cree le grid du calendrier
-   * */
-  renderTimeSlots() {
-    const calendar = this.shadowRoot.querySelector('.calendar');
-    const timeLabelCol = this.shadowRoot.querySelector('.time-label-col');
-
-    const currentTimeSlots = calendar.querySelectorAll(".time-slot");
-    currentTimeSlots.forEach(cts => cts.remove());
-
-    const currentTimeLabels = timeLabelCol.querySelectorAll('.time-header');
-    currentTimeLabels.forEach(ctl => ctl.remove());
-
-    let darkModeOn;
-
-    if (this.isDarkModeOn()) {
-      darkModeOn = "dark-mode";
-    }
-
-    for (let hour = 0; hour < 24; hour++) {
-      const timeLabel = document.createElement('div');
-      timeLabel.classList.add('time-slot', 'time-header', `${darkModeOn}`);
-      timeLabel.textContent = `${hour}:00`;
-      timeLabelCol.appendChild(timeLabel);
-
-      for (let day = 0; day < 7; day++) {
-        const timeSlot = document.createElement('div');
-        timeSlot.classList.add("time-slot");
-        timeSlot.setAttribute('data-hour', hour);
-        timeSlot.setAttribute('data-day', day);
-        calendar.appendChild(timeSlot);
-      }
-    }
-    // afficher mois nav bar
-    const options = { year: 'numeric', month: 'long' };
-    let formattedDate = this.currentDate.toLocaleDateString('fr-FR', options);
-    const monthYearDisplay = this.shadowRoot.querySelector('.month-year-display');
-    formattedDate = String(formattedDate).charAt(0).toUpperCase() + String(formattedDate).slice(1);
-    monthYearDisplay.textContent = formattedDate;
-  }
-
-
-  populateWeekDates() {
-    const headerRow = this.shadowRoot.querySelector(".header-row");
-    const dayHeaders = headerRow.querySelectorAll(".day-header");
-
-    // Find Monday of the current week based on this.currentDate
-    const dayOfWeek = this.currentDate.getDay();
-    const monday = new Date(this.currentDate);
-    monday.setDate(this.currentDate.getDate() - ((dayOfWeek + 6) % 7));
-
-    // Array of day names
-    const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-
-    // Get today's date for comparison
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Populate each day header with the current date and day name
-    dayHeaders.forEach((dayHeader, index) => {
-      const currentDay = new Date(monday);
-      currentDay.setDate(monday.getDate() + index); 
-
-      const date = currentDay.toLocaleDateString("fr-FR");
-      const dayName = dayNames[index];
-
-      // Combine day name and date
-      dayHeader.textContent = `${dayName} ${date}`;
-
-      // Compare currentDay with today based on year, month, and day
-      if (currentDay.getFullYear() === today.getFullYear() &&
-        currentDay.getMonth() === today.getMonth() &&
-        currentDay.getDate() === today.getDate()) {
-        dayHeader.classList.add("current-day"); // Add special class for today
-      } else {
-        dayHeader.classList.remove("current-day"); // Remove the class if it's not today
-      }
-    });
-  }
-
-  // beautify numbers in day-headers
-  beautifyNumbers(n) {
-    const dateNumber = document.createElement("div");
-    dateNumber.classList.add("day-number");
-    dateNumber.textContent = n;
-    return dateNumber;
-  }
-
-  renderTasks() {
-    const calendar = this.shadowRoot.querySelector(".calendar");
-    const calWidth = calendar.clientWidth;
-    const calHeight = calendar.clientHeight;
-    calendar.querySelectorAll(".task").forEach(taskEl => taskEl.remove());
-
-    // Get the height of a single time slot
-    const slotHeight = this.shadowRoot.querySelector(".time-slot:not(.time-header)").clientHeight;
-
-    // Calculate the start of the current week (Monday) and the end of the week (next Monday)
-    const startOfWeek = new Date(this.currentDate);
-    startOfWeek.setDate(this.currentDate.getDate() - this.currentDate.getDay() + 1); // Set to Monday
-    startOfWeek.setHours(0, 0, 0, 0); // Clear time for accurate comparison
-
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 7); // Set to next Monday
-
-
-    const filteredTasks = this.tasks.filter(task => {
-      const taskDate = new Date(task.date);
-      return taskDate >= startOfWeek && taskDate < endOfWeek;
-    });
-
-    // Sort tasks by dayPosition and startTime
-    filteredTasks.sort((a, b) => a.dayPosition - b.dayPosition || a.startTime - b.startTime);
-
-    // Array to hold arrays of tasks that collide on the same day
-    const collidingTasks = [];
-
-    // Find colliding tasks
-    filteredTasks.forEach(task => {
-      let collisionFound = false;
-      for (let i = 0; i < collidingTasks.length; i++) {
-        const group = collidingTasks[i];
-        // Check collision with all tasks in the group
-        if (group[0].dayPosition === task.dayPosition &&
-          group.some(t => (task.startTime < t.endTime && task.endTime > t.startTime))) {
-          group.push(task);
-          collisionFound = true;
-          break;
-        }
-      }
-      if (!collisionFound) {
-        collidingTasks.push([task]);
-      }
-    });
-
-    // Function to check if two tasks collide
-    function isColliding(task1, task2) {
-      return task1.startTime < task2.endTime && task1.endTime > task2.startTime;
-    }
-
-    // Render tasks
-    collidingTasks.forEach(group => {
-      group.sort((a, b) => a.startTime - b.startTime);
-
-      // Initialize an array to track the column each task is assigned to
-      const columns = [];
-
-      group.forEach(task => {
-        // Find the first available column where this task doesn't collide
-        let columnIndex = 0;
-        while (columnIndex < columns.length && columns[columnIndex].some(t => isColliding(t, task))) {
-          columnIndex++;
-        }
-
-        // If no column is found, create a new one
-        if (!columns[columnIndex]) {
-          columns[columnIndex] = [];
-        }
-
-        // Assign the task to the found/created column
-        columns[columnIndex].push(task);
-
-        const taskEl = document.createElement("div");
-        taskEl.classList.add("task");
-        taskEl.setAttribute("data-id", task.taskId);
-
-        // Calculate task positions
-        const left = (task.dayPosition * calWidth) / 7 + (columnIndex * calWidth) / (7 * columns.length);
-        const top = Math.max(((task.startTime / 1440) * calHeight), 0);
-        const width = calWidth / (7 * columns.length);
-
-        taskEl.style.left = `${(left / calWidth) * 100}%`;
-        taskEl.style.width = `${(width / calWidth) * 100}%`;
-        taskEl.style.top = `${top}px`;
-
-        const height = (task.duration / 60) * slotHeight;
-        taskEl.style.height = `${height}px`;
-
-        const title = document.createElement("div");
-        title.classList.add('title');
-        title.textContent = task.title;
-        taskEl.appendChild(title);
-
-        const time = document.createElement("div");
-        time.classList.add("time");
-        time.textContent = `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
-        taskEl.appendChild(time);
-
-        const description = document.createElement("div");
-        description.classList.add("description");
-        description.textContent = `${task.description}`;
-        taskEl.appendChild(description);
-
-        // define color to elemnet
-        taskEl.style.backgroundColor = task.color;
-
-        taskEl.addEventListener('click', (e) => {
-          if (!e.target.classList.contains("resize-handle") &&
-            !e.target.classList.contains("remove-btn")) {
-            this.showTaskForm(task, taskEl);
-          }
-        });
-
-        // Add resize handles to the task element
-        this.addResizeHandles(taskEl);
-        this.addRemoveButton(taskEl);
-        this.dragAndDrop(taskEl, task);
-
-        calendar.appendChild(taskEl);
-      });
-    });
-  }
-
+  /**
+   * execute createAndResizeTask when click sur calendrier (grid)
+   */
   addCalendarListener() {
     const calendar = this.shadowRoot.querySelector(".calendar");
     calendar.addEventListener("mousedown", (e) => {
@@ -328,7 +422,10 @@ class WeekDisplay extends HTMLElement {
     });
   }
 
-  // load tasks from local storage
+                                                  // LOCALSTORAGE FUNCTIONS
+  /**
+   * @returns liste des taches parse dans localstorage
+   */
   loadTasksFromLocalStorage() {
     const storedJSON = JSON.parse(localStorage.getItem("tasks")) || [];
     return storedJSON.map(obj =>
@@ -337,19 +434,19 @@ class WeekDisplay extends HTMLElement {
     );
   }
 
-  // save tasks to localStorage
+  /**
+   * sauvegarde this.tasks dans localstorage format JSON
+   */
   saveTasksToLocalStorage() {
-    localStorage.setItem('tasks', JSON.stringify(this.tasks));  // Store tasks in localStorage as a JSON string
-
+    localStorage.setItem('tasks', JSON.stringify(this.tasks));  
   }
 
-  // update changes and save tasks
-  updateTasks() {
-    this.saveTasksToLocalStorage();
-    this.tasks = this.loadTasksFromLocalStorage();
-  }
-
-
+                                                    // TASK MANIPULATION FUNCTIONS
+  /**
+   * attache au calendrier 
+   * cree tache onclick
+   * while holding mouse, resize task upward/downward
+   */
   createAndResizeTask() {
     const calendar = this.shadowRoot.querySelector(".calendar");
     let isDrawing = false;
@@ -378,8 +475,6 @@ class WeekDisplay extends HTMLElement {
       currentElement.style.height = `${newHeight}px`;
       currentElement.style.top = `${newTop}px`;
 
-      // const task = this.tasks.find(task => task.taskId == currentElement.getAttribute("data-id"));
-      console.log(task);
       if (task) {
         const newStartTime = Math.floor((newTop / calendar.offsetHeight) * totalMinutesDay);
         const newEndTime = newStartTime + Math.floor((newHeight / calendar.offsetHeight) * totalMinutesDay);
@@ -436,7 +531,6 @@ class WeekDisplay extends HTMLElement {
         const description = "(untitled task)";
 
         task = new Task(taskId, taskDate, description, startTime, endTime, "");
-        // this.tasks.push(task);
 
         let darkModeOn;
         if (this.isDarkModeOn()) darkModeOn = "dark-mode";
@@ -469,7 +563,7 @@ class WeekDisplay extends HTMLElement {
           `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
         taskEl.appendChild(time);
 
-        taskEl.style.backgroundColor = "#FFDD57";
+        taskEl.style.backgroundColor = "#FFFAC8";
 
         this.addResizeHandles(taskEl);
         this.addRemoveButton(taskEl);
@@ -502,208 +596,11 @@ class WeekDisplay extends HTMLElement {
     calendar.addEventListener('mousedown', onMouseDown);
   }
 
-
-  showTaskForm(task) {
-    if (this.isDragging) { return; }
-
-    // Create the overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'overlay';
-
-    let darkModeOn = this.isDarkModeOn() ? "dark-mode" : 'light-mode';
-
-    // Create the form
-    const form = document.createElement('form');
-    form.classList.add("form", `${darkModeOn}`);
-    // form.classList.add("form");
-    form.innerHTML = `
-<div class="form-close-button">✕</div>
-<label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
-<label>Title: <input type="text" name="title" value="${task.title}" required></label>
-<label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
-<label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
-<div class="duration-display"></div>
-<label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
-<div>
-  <p>Task color:</p>
-  <ul class="color-tags-container">
-    <li class="color-tags" data-color="#FFABAB" style="background-color: #FFABAB;"></li>
-    <li class="color-tags" data-color="#BFFCC6" style="background-color: #BFFCC6;"></li>
-    <li class="color-tags" data-color="#97A2FF" style="background-color: #97A2FF;"></li>
-    <li class="color-tags" data-color="#C4FAF8" style="background-color: #C4FAF8;"></li>
-    <li class="color-tags" data-color="#AFF8DB" style="background-color: #AFF8DB;"></li>
-    <li class="color-tags" data-color="#FF9CEE" style="background-color: #FF9CEE;"></li>
-    <li class="color-tags" data-color="#6EB5FF" style="background-color: #6EB5FF;"></li>
-    <li class="color-tags" data-color="#FFF5BA" style="background-color: #FFF5BA;"></li>
-  </ul>
-  <input type="hidden" name="color" id="color-input" value="${task.color}">
-</div>
-<button type="submit">Save</button>
-<div class="error-message"></div>
-    `;
-
-    // Focus on the submit button
-    const submitButton = form.querySelector('button[type="submit"]');
-    submitButton.focus();
-
-    // Function to update the duration display
-    const updateTimeDisplay = () => {
-        const startTimeInput = form.querySelector('input[name="startTime"]');
-        const endTimeInput = form.querySelector('input[name="endTime"]');
-        const durationDisplay = form.querySelector('.duration-display');
-
-        const startTime = this.convertTimeToMinutes(startTimeInput.value);
-        let endTime = this.convertTimeToMinutes(endTimeInput.value);
-
-        // If endTime is null or empty, set it to 1440 minutes (24:00)
-        if (!endTimeInput.value) {
-            endTime = 1440;
-        }
-
-        // Calculate duration
-        const duration = endTime - startTime;
-
-        // Update duration display
-        durationDisplay.textContent = duration > 0
-            ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
-            : 'Duration: 0 hours 0 minutes';
-    };
-
-    // Handle color selection
-    const colorInput = form.querySelector('#color-input');
-    form.querySelectorAll(".color-tags").forEach(btn => {
-        if (btn.getAttribute("data-color") === task.color) {
-            btn.classList.add('selected');
-        }
-        btn.addEventListener('click', () => {
-            form.querySelectorAll(".color-tags").forEach(el => el.classList.remove('selected'));
-            btn.classList.add('selected');
-            colorInput.value = btn.getAttribute("data-color");
-        });
-    });
-
-    // Handle form submission
-    // Handle form submission
-form.addEventListener('submit', (e) => {
-    e.preventDefault();
-
-    const formData = new FormData(form);
-    const date = formData.get('date');
-    const title = formData.get('title');
-    const startTime = this.convertTimeToMinutes(formData.get('startTime'));
-    let endTime = this.convertTimeToMinutes(formData.get('endTime'));
-    const color = formData.get('color');
-    const errorMessageElement = form.querySelector('.error-message');
-
-    // Clear previous error message
-    errorMessageElement.style.display = 'none';
-    errorMessageElement.textContent = '';
-
-    // Validation checks
-    const selectedDate = new Date(date);
-    if (isNaN(selectedDate.getTime())) {
-        errorMessageElement.textContent = 'Please select a valid date.';
-        errorMessageElement.style.display = 'block';
-        return;
-    }
-
-    if (startTime < 0 || startTime > 1440) {
-        errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
-        errorMessageElement.style.display = 'block';
-        return;
-    }
-    if (endTime < 0 || endTime > 1440) {
-        errorMessageElement.textContent = 'End time must be between 00:00 and 24:00.';
-        errorMessageElement.style.display = 'block';
-        return;
-    }
-    if (endTime <= startTime) {
-        errorMessageElement.textContent = 'End time must be greater than start time.';
-        errorMessageElement.style.display = 'block';
-        return;
-    }
-
-    // Find the index of the task in the tasks array
-    const taskIndex = this.tasks.findIndex(t => t.taskId == task.taskId);
-
-    if (taskIndex > -1) {
-        // Update existing task
-        this.tasks[taskIndex].title = title;
-        this.tasks[taskIndex].date = selectedDate;
-        this.tasks[taskIndex].description = formData.get('description');
-        this.tasks[taskIndex].startTime = startTime;
-        this.tasks[taskIndex].endTime = endTime;
-        this.tasks[taskIndex].color = color;
-    } else {
-        // Add new task if it doesn't exist
-        task.title = title;
-        task.date = selectedDate;
-        task.description = formData.get('description');
-        task.startTime = startTime;
-        task.endTime = endTime;
-        task.color = color;
-        this.tasks.push(task);
-    }
-    console.log(this.tasks)
-
-    this.saveTasksToLocalStorage();
-    this.tasks = this.loadTasksFromLocalStorage();
-
-    overlay.remove(); // Remove the overlay
-    this.renderTasks(); // Re-render tasks
-  });
-
-
-    // Close the form on Escape key press
-    const closeForm = (e) => {
-        if (e.key === 'Escape') {
-            overlay.remove(); // Remove the overlay
-            document.removeEventListener('keydown', closeForm); // Clean up the event listener
-        }
-    };
-    const closeBtn = form.querySelector(".form-close-button");
-    closeBtn.addEventListener("click", () => {
-        overlay.remove(); // Remove the overlay
-        document.removeEventListener('keydown', closeForm); // Clean up the event listener
-    });
-
-    // Add event listener for Escape key
-    document.addEventListener('keydown', closeForm);
-
-    // Append the form to the overlay
-    overlay.appendChild(form);
-
-    // Append the overlay to the shadow root
-    this.shadowRoot.appendChild(overlay);
-
-    // Initial update of the time display and duration
-    updateTimeDisplay();
-  }
-
-
-  // Helper function to format the date to 'YYYY-MM-DD'
-  formatDate(dateString) {
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  // Helper method to convert minutes to time format (HH:MM)
-  convertMinutesToTime(minutes) {
-    const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
-    const mins = String(minutes % 60).padStart(2, '0');
-    return `${hours}:${mins}`;
-  }
-
-  // Helper method to convert time format (HH:MM) to minutes
-  convertTimeToMinutes(time) {
-    const [hours, minutes] = time.split(':').map(Number);
-
-    return hours * 60 + minutes;
-  }
-
+  /**
+   * drag tasks and drop them else where with mouse
+   * @param {*} taskEl reference element html a modifer les prop top et height
+   * @param {*} task   reference objet task, modifier les properties
+   */
   dragAndDrop(taskEl, task) {
     const calendar = this.shadowRoot.querySelector(".calendar");
     const dragThreshold = 5;
@@ -733,12 +630,11 @@ form.addEventListener('submit', (e) => {
       const clickDuration = mouseUpTime - mouseDownTime;
 
       if (clickDuration < 50) {
-        // Short click - do nothing
+        // short click - do nothing
       } else if (isDragging) {
         const rect = taskEl.getBoundingClientRect();
         const calendarRect = calendar.getBoundingClientRect();
 
-        // Ensure the task is within the bounds of the calendar
         if (rect.top < calendarRect.top) {
           taskEl.style.top = `0px`;
         }
@@ -749,12 +645,10 @@ form.addEventListener('submit', (e) => {
           taskEl.style.left = `${calendar.clientWidth - taskEl.offsetWidth}px`;
         }
 
-        // Calculate the correct top property relative to the calendar
         let taskTop = taskEl.getBoundingClientRect().top - calendarRect.top;
         let startTime = Math.max(Math.floor((taskTop / calendar.clientHeight) * 1440), 0);
         startTime = Math.round(startTime / 15) * 15;
 
-        // Ensure startTime is not negative
         if (startTime < 0) {
           startTime = 0;
         }
@@ -762,21 +656,17 @@ form.addEventListener('submit', (e) => {
         const dayWidth = calendar.clientWidth / 7;
         let clientX = e.clientX;
 
-        // Adjust clientX to prevent exceeding calendar boundaries
         if (clientX < 70) {
           clientX = 70;
         } else if (clientX > calendar.clientWidth) {
           clientX = calendar.clientWidth;
         }
 
-        // Calculate the index of the day based on the current week's Monday
         const dayIndex = Math.floor((clientX - calendarRect.left) / dayWidth);
 
-        // Calculate the new date based on the current week's Monday
         const newDate = new Date(this.currentDate);
         newDate.setDate(this.currentDate.getDate() + dayIndex);
 
-        // Adjust startTime to ensure the task's endTime is within the day
         let endTime = startTime + task.duration;
         if (endTime > 1440) { // 1440 minutes = 24 hours
           endTime = 1440;
@@ -787,7 +677,6 @@ form.addEventListener('submit', (e) => {
         taskObj.startTime = startTime;
         taskObj.endTime = endTime;
 
-        // Update taskEl's top position
         taskTop = (startTime / 1440) * calendar.clientHeight;
         taskEl.style.top = `${taskTop}px`;
 
@@ -822,7 +711,12 @@ form.addEventListener('submit', (e) => {
     taskEl.addEventListener('mousedown', onMouseDown);
   }
 
-  // Calculates position within the calendar grid
+  /**
+   * 
+   * @param {*} e evennement
+   * @param {*} context soit resize ou create le calcul differe
+   * @returns calcule et retourne la position x et y relatif a l'elemenet calendrier (grid)
+   */
   calculatePosition(e, context) {
     const calendar = this.shadowRoot.querySelector(".calendar");
     const rect = calendar.getBoundingClientRect();
@@ -855,12 +749,185 @@ form.addEventListener('submit', (e) => {
     return { x, y, dayIndex };
   }
 
-  formatTime(minutes) {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  /**
+   * affiche un formulaire taches onclick
+   * @param {*} task trouve la tache a modifier
+   */
+  showTaskForm(task) {
+    if (this.isDragging) { return; }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+
+    let darkModeOn = this.isDarkModeOn() ? "dark-mode" : 'light-mode';
+
+    const form = document.createElement('form');
+    form.classList.add("form", `${darkModeOn}`);
+    form.innerHTML = `
+    <div class="form-close-button">✕</div>
+    <label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
+    <label>Title: <input type="text" name="title" value="${task.title}" required></label>
+    <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
+    <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
+    <div class="duration-display"></div>
+    <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
+    <div>
+      <p>Task color:</p>
+      <ul class="color-tags-container ${darkModeOn}" style="display: flex; justify-content: center; align-items: center;">
+        <li class="color-tags" data-color="#FFB3BA" style="background-color: #FFB3BA;"></li>
+        <li class="color-tags" data-color="#B3E2CD" style="background-color: #B3E2CD;"></li>
+        <li class="color-tags" data-color="#D4C4FB" style="background-color: #D4C4FB;"></li>
+        <li class="color-tags" data-color="#FFFAC8" style="background-color: #FFFAC8;"></li>
+        <li class="color-tags" data-color="#BAE1FF" style="background-color: #BAE1FF;"></li>
+      </ul>
+      <input type="hidden" name="color" id="color-input" value="${task.color}">
+    </div>
+    <button type="submit">Save</button>
+    <div class="error-message"></div>
+    `;
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.focus();
+
+    const updateTimeDisplay = () => {
+      const startTimeInput = form.querySelector('input[name="startTime"]');
+      const endTimeInput = form.querySelector('input[name="endTime"]');
+      const durationDisplay = form.querySelector('.duration-display');
+
+      const startTime = this.convertTimeToMinutes(startTimeInput.value);
+      let endTime = this.convertTimeToMinutes(endTimeInput.value);
+
+      if (!endTimeInput.value) {
+        endTime = 1440;
+      }
+
+      const duration = endTime - startTime;
+
+      durationDisplay.textContent = duration > 0
+        ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
+        : 'Duration: 0 hours 0 minutes';
+    };
+
+    const colorInput = form.querySelector('#color-input');
+    form.querySelectorAll(".color-tags").forEach(btn => {
+      if (btn.getAttribute("data-color") === task.color) {
+        btn.classList.add('selected');
+      }
+      btn.addEventListener('click', () => {
+        form.querySelectorAll(".color-tags").forEach(el => el.classList.remove('selected'));
+        btn.classList.add('selected');
+        colorInput.value = btn.getAttribute("data-color");
+      });
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const date = formData.get('date');
+      const title = formData.get('title');
+      const startTime = this.convertTimeToMinutes(formData.get('startTime'));
+      let endTime = this.convertTimeToMinutes(formData.get('endTime'));
+      const color = formData.get('color');
+      const errorMessageElement = form.querySelector('.error-message');
+
+      errorMessageElement.style.display = 'none';
+      errorMessageElement.textContent = '';
+
+      const selectedDate = new Date(date);
+      if (isNaN(selectedDate.getTime())) {
+        errorMessageElement.textContent = 'Please select a valid date.';
+        errorMessageElement.style.display = 'block';
+        return;
+      }
+
+      if (startTime < 0 || startTime > 1440) {
+        errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
+        errorMessageElement.style.display = 'block';
+        return;
+      }
+      if (endTime < 0 || endTime > 1440) {
+        errorMessageElement.textContent = 'End time must be between 00:00 and 24:00.';
+        errorMessageElement.style.display = 'block';
+        return;
+      }
+      if (endTime <= startTime) {
+        errorMessageElement.textContent = 'End time must be greater than start time.';
+        errorMessageElement.style.display = 'block';
+        return;
+      }
+
+      const taskIndex = this.tasks.findIndex(t => t.taskId == task.taskId);
+
+      if (taskIndex > -1) {
+        // met a jour les info si la tache existe
+        this.tasks[taskIndex].title = title;
+        this.tasks[taskIndex].date = selectedDate;
+        this.tasks[taskIndex].description = formData.get('description');
+        this.tasks[taskIndex].startTime = startTime;
+        this.tasks[taskIndex].endTime = endTime;
+        this.tasks[taskIndex].color = color;
+      } else {
+        // cree une nouvelle tache et push dans this.tasks
+        task.title = title;
+        task.date = selectedDate;
+        task.description = formData.get('description');
+        task.startTime = startTime;
+        task.endTime = endTime;
+        task.color = color;
+        this.tasks.push(task);
+      }
+
+      this.saveTasksToLocalStorage();
+      this.tasks = this.loadTasksFromLocalStorage();
+
+      // Trigger close animation
+      form.classList.add('close');
+      setTimeout(() => {
+        overlay.remove();
+        this.renderTasks();
+      }, 300); // Match this timeout to your transition time
+    });
+
+    const closeForm = (e) => {
+      if (e.key === 'Escape') {
+        form.classList.add('close');
+        setTimeout(() => {
+          overlay.remove();
+        }, 300);
+        document.removeEventListener('keydown', closeForm);
+      }
+    };
+
+    const closeBtn = form.querySelector(".form-close-button");
+    closeBtn.addEventListener("click", () => {
+      form.classList.add('close');
+      setTimeout(() => {
+        overlay.remove();
+        document.removeEventListener('keydown', closeForm);
+      }, 300);
+    });
+
+    document.addEventListener('keydown', closeForm);
+
+    // Add the form and overlay to the DOM
+    overlay.appendChild(form);
+    this.shadowRoot.appendChild(overlay);
+
+    // Trigger show animation
+    setTimeout(() => {
+      overlay.classList.add('show');
+      form.classList.add('show');
+    }, 10); // Short delay for smoother animation
+
+    updateTimeDisplay();
   }
 
+
+  /**
+   * ajoute btn de suppression a la tache
+   * @param {*} taskEl reference elemnt html
+   */
   addRemoveButton(taskEl) {
     const removeBtn = document.createElement("div");
     let darkModeOn;
@@ -889,6 +956,10 @@ form.addEventListener('submit', (e) => {
     taskEl.appendChild(removeBtn);
   }
 
+  /**
+   * Adds resizing handles to task html element
+   * @param {*} taskEl ref elemnt html
+   */
   addResizeHandles(taskEl) {
     const topHandle = document.createElement("div");
     const bottomHandle = document.createElement("div");
@@ -910,6 +981,11 @@ form.addEventListener('submit', (e) => {
     taskEl.appendChild(bottomHandle);
   }
 
+  /**
+   * allows for using resize handles to resize
+   * the html elment
+   * @param {*} e evennement
+   */
   resize(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -931,7 +1007,6 @@ form.addEventListener('submit', (e) => {
     let initialStartTime = taskObj.startTime;
     let initialEndTime = taskObj.endTime;
 
-    // Event listener for mousemove to update the height
     const onMouseMove = (moveEvent) => {
       let currentY = this.calculatePosition(moveEvent, "resize").y;
       const heightChange = currentY - initY;
@@ -940,14 +1015,12 @@ form.addEventListener('submit', (e) => {
       if (direction === "top") {
         newHeight = initialHeight - heightChange;
         let newTop = initialTop + heightChange;
-        // Ensure minimum height
         if (newHeight < minTaskHeight) {
           newHeight = minTaskHeight;
           newTop = initialTop + (initialHeight - minTaskHeight);
         }
         taskEl.style.top = `${newTop}px`;
 
-        // Calculate new start time based on the top handle movement
         taskObj.startTime = initialStartTime + (heightChange / slotHeight) * 60;
 
       } else if (direction == "bottom") {
@@ -956,13 +1029,11 @@ form.addEventListener('submit', (e) => {
         } else if (currentY >= calHeight) {
           currentY = calHeight;
         }
-        // Calculate new end time based on the bottom handle movement
         taskObj.endTime = initialEndTime + (heightChange / slotHeight) * 60;
       }
       taskEl.style.height = `${newHeight}px`;
     };
 
-    // Event listener for mouseup to stop resizing
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
@@ -974,13 +1045,14 @@ form.addEventListener('submit', (e) => {
       this.renderTasks();
     };
 
-    // Add event listeners
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   }
 
-
-  // Gets the dimensions for a single slot in the calendar
+  /**
+   * dimensions des slots qui composent le grid du calendrier 
+   * @returns {width, height}
+   */
   getSlotDimensions() {
     const slot = this.shadowRoot.
       querySelector(".time-slot:not(.time-header)");
@@ -990,40 +1062,58 @@ form.addEventListener('submit', (e) => {
     };
   }
 
-
-  initParametersButton() {
-    const parametersContainer = this.shadowRoot.querySelector('.parameters-container');
-    const parametersWindow = document.createElement('div');
-    parametersWindow.classList.add('parameters-window');
-    parametersWindow.innerHTML = `
-    `;
-    parametersContainer.appendChild(parametersWindow);
-
-    // Add event listeners
-    const parametersBtn = this.shadowRoot.querySelector('.parameters-btn');
-
-    parametersBtn.addEventListener('mouseover', () => {
-      parametersWindow.style.display = 'block';
-    });
-
-    parametersBtn.addEventListener('mouseout', () => {
-      parametersWindow.style.display = 'none';
-    });
-
-    parametersWindow.addEventListener('mouseover', () => {
-      parametersWindow.style.display = 'block';
-    });
-
-    parametersWindow.addEventListener('mouseout', () => {
-      parametersWindow.style.display = 'none';
-    });
+                                                            // FORMATTING FUNCTIONS
+  /**
+   * formate la date pour rajouter a l'attribut value dans le form html
+   * de this.ghowTaskForm();
+   * @param {*} dateString 
+   * @returns date formattee
+   */
+  formatDate(dateString) {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0'); 
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
+  /**
+   * @param {*} minutes 
+   * @returns formatee en heure
+   */
+  convertMinutesToTime(minutes) {
+    const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
+    const mins = String(minutes % 60).padStart(2, '0');
+    return `${hours}:${mins}`;
+  }
 
+  /**
+   * @param {*} time 
+   * @returns calcule en minutes
+   */
+  convertTimeToMinutes(time) {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
 
-
+  /**
+   * @param {*} minutes 
+   * @returns heure formatee
+   */
+  formatTime(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  }
+  
+  /**
+   * @returns html de base pour le web componenet
+   */
   getTemplate() {
     return `
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
@@ -1040,6 +1130,9 @@ form.addEventListener('submit', (e) => {
 
 * {
   box-sizing: border-box;
+  font-family: "Geist Mono", monospace;
+  font-optical-sizing: auto;
+  font-style: normal;
 }
 
 .container {
@@ -1059,16 +1152,11 @@ form.addEventListener('submit', (e) => {
   background-color: #4a90e2;
   color: #ffffff;
   z-index: 1;
-  border-bottom: 1px solid #e0e0e0;
-  margin-bottom: -1px;
-  border-right: 1px solid #e0e0e0;
-  margin-right: -1px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border-radius: 2px;
   text-align: center;
 }
 
@@ -1076,6 +1164,8 @@ form.addEventListener('submit', (e) => {
   font-size: 16px;
   font-weight: bold;
   height: 50px;
+  min-width: 50px;
+  overflow: hidden;
 }
 
 .day-header .day-number {
@@ -1127,6 +1217,7 @@ form.addEventListener('submit', (e) => {
   margin-right: -1px;
   height: 40px;
   position: relative;
+  min-width: 50px;
 }
 
                                 /* TASK ELEMENT LAYOUT */
@@ -1187,6 +1278,32 @@ form.addEventListener('submit', (e) => {
 .task.collapsing {
   opacity: 0;
 }
+
+.task {
+  transition: opacity 0.5s ease-in-out;
+}
+
+.fade-in {
+  opacity: 0;
+  animation: fadeIn 0.5s forwards;
+}
+
+.fade-out {
+  animation: fadeOut 0.5s forwards;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
 
                               /* REMOVE BUTTON STYLES */
 .remove-btn {
@@ -1259,9 +1376,14 @@ form.addEventListener('submit', (e) => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.overlay.show {
+  opacity: 1;
+  pointer-events: all;
 }
 
-/* Container for the form */
 .form {
   background-color: #ffffff;
   padding: 20px;
@@ -1273,9 +1395,22 @@ form.addEventListener('submit', (e) => {
   flex-direction: column;
   gap: 15px;
   position: relative;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-/* Close button styling */
+.form.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.form.close {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
 .form-close-button {
   position: absolute;
   top: 15px;
@@ -1333,30 +1468,6 @@ form.addEventListener('submit', (e) => {
   height: auto;
 }
 
-/* Color buttons container */
-.color-tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 0;
-  list-style: none;
-}
-
-/* Color button styling */
-.color-tags {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  cursor: pointer;
-  border: 2px solid transparent;
-  transition: border-color 0.3s ease;
-}
-
-.color-tags.selected {
-  border-color: #000000;
-}
-
-/* Save button styling */
 .form button[type="submit"] {
   padding: 10px 20px;
   font-size: 16px;
@@ -1398,6 +1509,7 @@ form.addEventListener('submit', (e) => {
   padding: 10px;
   border-radius: 8px;
   margin-bottom: 10px;
+  box-sizing: border-box;
 }
 
 .navbar button {
@@ -1416,7 +1528,7 @@ form.addEventListener('submit', (e) => {
 }
 
 .navbar .today-btn {
-font-weight: bold;
+  font-weight: bold;
 }
 
 .month-year-display {
@@ -1446,9 +1558,118 @@ font-weight: bold;
   font-weight: bold; 
 }
 
-                              /* PARAMS BUTTON NAVIGATION BAR */
+.color-tags-container {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background-color: #4a90e2; 
+  padding: 5px 10px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  height: 35px;
+}
 
-                          /* DARK MODE TOGGLE SWITCH */
+.color-tags-label {
+  color: #ffffff;
+  font-weight: bold;
+  margin-right: 10px;
+  font-size: 14px;
+}
+
+.color-tags {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin: 0 5px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  border: 2px solid transparent; 
+}
+
+.color-tags:hover {
+  transform: scale(1.2);
+}
+
+.color-tags.selected {
+  transform: scale(0.7);
+}
+
+.theme-switch-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px; /* Space between the elements */
+  font-size: 16px; 
+  color: #ffffff;
+  background-color: #4a90e2; 
+  padding: 5px 10px;
+  border-radius: 5px;
+  height: 35px;
+  width: 200px;
+  margin-right: 10px;
+}
+.color-tags-container.dark-mode {
+  background-color: #000000; 
+}
+.theme-switch-container.dark-mode {
+  background-color: #000000; 
+}
+
+
+.theme-state {
+  font-weight: bold;
+  font-size: 1rem;
+  transition: color 0.3s ease;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: White;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #2196F3;
+}
+
+input:checked + .slider:before {
+  transform: translateX(14px);
+}
+                       
+                            /* DARK MODE TOGGLE SWITCH */
 .switch { 
   position: relative;
   display: inline-block;
@@ -1554,11 +1775,6 @@ button.accentuated.dark-mode {
   color: White !important;
 }
 
-.resize-handle.dark-mode {
-  background-color: White;
-  border: solid White;
-}
-
 .form.dark-mode {
   background-color: #1c1c1c;
   color: #e0e0e0;
@@ -1650,16 +1866,33 @@ button.accentuated.dark-mode {
 <div class="container">
 
   <div class="navbar">
-    <button class="prev-week-btn"><i class="fas fa-arrow-left"></i></button>
-    <button class="next-week-btn"><i class="fas fa-arrow-right"></i></button>
-    <button class="today-btn"><i class="fas fa-calendar-day"></i></button>
+
+    <div class="theme-switch-container" title="switcher le theme couleur d'affichage">
+      <div class="theme-state">Mode sombre</div>
+      <label class="switch">
+        <input type="checkbox" id="dark-mode-toggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div title="filtrer les taches en fonction de la couleur">
+      <ul class="color-tags-container">
+        <li class="color-tags-label">Tags Couleurs</li>
+        <li class="color-tags" data-color="#FFB3BA" style="background-color: #FFB3BA;" title="filtre rouge"></li>
+        <li class="color-tags" data-color="#B3E2CD" style="background-color: #B3E2CD;" title="filtre vert"></li>
+        <li class="color-tags" data-color="#D4C4FB" style="background-color: #D4C4FB;" title="filtre violet"></li>
+        <li class="color-tags" data-color="#FFFAC8" style="background-color: #FFFAC8;" title="filtre jaune"></li>
+        <li class="color-tags" data-color="#BAE1FF" style="background-color: #BAE1FF;" title="filtre bleu"></li>
+      </ul>
+    </div>
 
     <div class="month-year-display accentuated"></div>
 
-    <label class="switch">
-      <input type="checkbox" id="dark-mode-toggle">
-      <span class="slider"></span>
-    </label>
+    <button class="prev-week-btn" title="Afficher la semaine précédente"><i class="fas fa-arrow-left"></i></button>
+    <button class="next-week-btn" title="Afficher la semaine suivante"><i class="fas fa-arrow-right"></i></button>
+    <button class="today-btn" title="Revenir à la date actuelle"><i class="fas fa-calendar-day"></i></button>
+
+
   </div>
 
   <div class="header-row">
