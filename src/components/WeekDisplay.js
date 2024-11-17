@@ -4,6 +4,8 @@ class WeekDisplay extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = this.getTemplate();
 
+    this.selectedColors = new Set();
+
     this.currentDate = this.getMonday();
     // initialise this.tasks avec les taches dans localstorage
     // this.tasks contient les taches
@@ -25,6 +27,8 @@ class WeekDisplay extends HTMLElement {
     this.addCalendarListener();
     this.createAndResizeTask();
     this.renderTasks();
+    this.addColorTagListeners();
+    this.toggleDarkMode();
   }
 
                           // DATE MANIPULATION FUNCITONS
@@ -75,10 +79,17 @@ class WeekDisplay extends HTMLElement {
    * le css est ecrit dans la fonction this.getTemplate() 
    */
   toggleDarkMode() {
+    const themeState = this.shadowRoot.querySelector(".theme-state");
+    const darkModeToggle = this.shadowRoot.querySelector("#dark-mode-toggle");
+
+    darkModeToggle.addEventListener('change', () => {
+      themeState.textContent = darkModeToggle.checked ? "Mode sombre" : "Mode clair";
+    });
+
     const elementsToToggle = this.shadowRoot.querySelectorAll(
       `.container, .calendar, .day-header, .time-header, .empty, 
       .navbar, .header-row, .container-time-label, button, 
-      .current-day`
+      .current-day, .theme-switch-container, .color-tags-container`
     );
     elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
     this.renderTasks();
@@ -99,6 +110,7 @@ class WeekDisplay extends HTMLElement {
   renderTimeSlots() {
     const calendar = this.shadowRoot.querySelector('.calendar');
     const timeLabelCol = this.shadowRoot.querySelector('.time-label-col');
+    const titleInfo = "Cliquez pour créer une tâche"
 
     const currentTimeSlots = calendar.querySelectorAll(".time-slot");
     currentTimeSlots.forEach(cts => cts.remove());
@@ -123,6 +135,7 @@ class WeekDisplay extends HTMLElement {
         timeSlot.classList.add("time-slot");
         timeSlot.setAttribute('data-hour', hour);
         timeSlot.setAttribute('data-day', day);
+        timeSlot.setAttribute('title', titleInfo);
         calendar.appendChild(timeSlot);
       }
     }
@@ -164,6 +177,7 @@ class WeekDisplay extends HTMLElement {
         currentDay.getMonth() === today.getMonth() &&
         currentDay.getDate() === today.getDate()) {
         dayHeader.classList.add("current-day"); 
+        dayHeader.textContent += " (Auj)";
       } else {
         dayHeader.classList.remove("current-day"); 
       }
@@ -180,7 +194,6 @@ class WeekDisplay extends HTMLElement {
     const calendar = this.shadowRoot.querySelector(".calendar");
     const calWidth = calendar.clientWidth;
     const calHeight = calendar.clientHeight;
-    calendar.querySelectorAll(".task").forEach(taskEl => taskEl.remove());
 
     const slotHeight = this.shadowRoot.querySelector(".time-slot:not(.time-header)").clientHeight;
 
@@ -191,104 +204,167 @@ class WeekDisplay extends HTMLElement {
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 7); 
 
-
     const filteredTasks = this.tasks.filter(task => {
-      const taskDate = new Date(task.date);
-      return taskDate >= startOfWeek && taskDate < endOfWeek;
+        const taskDate = new Date(task.date);
+        const isWithinWeek = taskDate >= startOfWeek && taskDate < endOfWeek;
+        const isSelectedColor = this.selectedColors.size === 0 || this.selectedColors.has(task.color);
+        return isWithinWeek && isSelectedColor;
     });
 
     filteredTasks.sort((a, b) => a.dayPosition - b.dayPosition || a.startTime - b.startTime);
 
     const collidingTasks = [];
 
-    // trouve les collisions
     filteredTasks.forEach(task => {
-      let collisionFound = false;
-      for (let i = 0; i < collidingTasks.length; i++) {
-        const group = collidingTasks[i];
-        if (group[0].dayPosition === task.dayPosition &&
-          group.some(t => (task.startTime < t.endTime && task.endTime > t.startTime))) {
-          group.push(task);
-          collisionFound = true;
-          break;
+        let collisionFound = false;
+        for (let i = 0; i < collidingTasks.length; i++) {
+            const group = collidingTasks[i];
+            if (group[0].dayPosition === task.dayPosition &&
+                group.some(t => (task.startTime < t.endTime && task.endTime > t.startTime))) {
+                group.push(task);
+                collisionFound = true;
+                break;
+            }
         }
-      }
-      if (!collisionFound) {
-        collidingTasks.push([task]);
-      }
+        if (!collisionFound) {
+            collidingTasks.push([task]);
+        }
     });
 
     function isColliding(task1, task2) {
-      return task1.startTime < task2.endTime && task1.endTime > task2.startTime;
+        return task1.startTime < task2.endTime && task2.startTime < task1.endTime;
     }
 
-    // Render tasks
+    // Handle task removal and animation
+    let anyTaskMatches = false;
+    const taskElements = calendar.querySelectorAll(".task");
+
+    // Use a Set to track IDs of tasks to remove
+    const tasksToRemove = new Set([...taskElements].map(el => el.getAttribute("data-id")));
+
+    filteredTasks.forEach(task => {
+        anyTaskMatches = true;
+        tasksToRemove.delete(task.taskId);
+    });
+
+    taskElements.forEach(taskEl => {
+        const taskId = taskEl.getAttribute("data-id");
+        if (tasksToRemove.has(taskId)) {
+            taskEl.classList.add("fade-out");
+            taskEl.addEventListener('transitionend', () => {
+                taskEl.remove();
+            });
+        }
+    });
+
     collidingTasks.forEach(group => {
-      group.sort((a, b) => a.startTime - b.startTime);
+        group.sort((a, b) => a.startTime - b.startTime);
 
-      const columns = [];
+        const columns = [];
 
-      group.forEach(task => {
-        let columnIndex = 0;
-        while (columnIndex < columns.length && columns[columnIndex].some(t => isColliding(t, task))) {
-          columnIndex++;
-        }
+        group.forEach(task => {
+            let columnIndex = 0;
+            while (columnIndex < columns.length && columns[columnIndex].some(t => isColliding(t, task))) {
+                columnIndex++;
+            }
 
-        if (!columns[columnIndex]) {
-          columns[columnIndex] = [];
-        }
+            if (!columns[columnIndex]) {
+                columns[columnIndex] = [];
+            }
 
-        columns[columnIndex].push(task);
+            columns[columnIndex].push(task);
 
-        const taskEl = document.createElement("div");
-        taskEl.classList.add("task");
-        taskEl.setAttribute("data-id", task.taskId);
+            const taskEl = document.createElement("div");
+            taskEl.classList.add("task");
+            taskEl.setAttribute("data-id", task.taskId);
+            taskEl.setAttribute("data-color", task.color);
 
-        const left = (task.dayPosition * calWidth) / 7 + (columnIndex * calWidth) / (7 * columns.length);
-        const top = Math.max(((task.startTime / 1440) * calHeight), 0);
-        const width = calWidth / (7 * columns.length);
+            const left = (task.dayPosition * calWidth) / 7 + (columnIndex * calWidth) / (7 * columns.length);
+            const top = Math.max(((task.startTime / 1440) * calHeight), 0);
+            const width = calWidth / (7 * columns.length);
 
-        taskEl.style.left = `${(left / calWidth) * 100}%`;
-        taskEl.style.width = `${(width / calWidth) * 100}%`;
-        taskEl.style.top = `${top}px`;
-        taskEl.style.backgroundColor = task.color;
+            taskEl.style.left = `${(left / calWidth) * 100}%`;
+            taskEl.style.width = `${(width / calWidth) * 100}%`;
+            taskEl.style.top = `${top}px`;
+            taskEl.style.backgroundColor = task.color;
 
-        const height = (task.duration / 60) * slotHeight;
-        taskEl.style.height = `${height}px`;
+            const height = (task.duration / 60) * slotHeight;
+            taskEl.style.height = `${height}px`;
 
-        const title = document.createElement("div");
-        title.classList.add('title');
-        title.textContent = task.title;
-        taskEl.appendChild(title);
+            if (this.colorTagsUpdated && !anyTaskMatches) {
+                taskEl.classList.add("fade-in");
+            }
 
-        const time = document.createElement("div");
-        time.classList.add("time");
-        time.textContent = `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
-        taskEl.appendChild(time);
+            const title = document.createElement("div");
+            title.classList.add('title');
+            title.textContent = task.title;
+            taskEl.appendChild(title);
 
-        const description = document.createElement("div");
-        description.classList.add("description");
-        description.textContent = `${task.description}`;
-        taskEl.appendChild(description);
+            const time = document.createElement("div");
+            time.classList.add("time");
+            time.textContent = `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
+            taskEl.appendChild(time);
 
+            const description = document.createElement("div");
+            description.classList.add("description");
+            description.textContent = task.description;
+            taskEl.appendChild(description);
 
-        taskEl.addEventListener('click', (e) => {
-          if (!e.target.classList.contains("resize-handle") &&
-            !e.target.classList.contains("remove-btn")) {
-            this.showTaskForm(task, taskEl);
-          }
+            let isDraggingOrResizing = false;
+
+            taskEl.addEventListener('mousedown', () => {
+                isDraggingOrResizing = false;
+            });
+
+            taskEl.addEventListener('mousemove', () => {
+                isDraggingOrResizing = true;
+            });
+
+            taskEl.addEventListener('mouseup', (e) => {
+                if (!isDraggingOrResizing) {
+                    if (!e.target.classList.contains("resize-handle") &&
+                        !e.target.classList.contains("remove-btn")) {
+                        this.showTaskForm(task, taskEl);
+                    }
+                }
+                isDraggingOrResizing = false;
+            });
+
+            this.addResizeHandles(taskEl);
+            this.addRemoveButton(taskEl);
+            this.dragAndDrop(taskEl, task);
+
+            calendar.appendChild(taskEl);
         });
+    });
 
-        this.addResizeHandles(taskEl);
-        this.addRemoveButton(taskEl);
-        this.dragAndDrop(taskEl, task);
+    this.colorTagsUpdated = false;  // Reset flag after rendering tasks
+  }
 
-        calendar.appendChild(taskEl);
-      });
+
+                                      // ADD EVENT LISTNERS FUNCTIONS
+ /**
+  * add listeners to nav bar colors
+  */
+  addColorTagListeners() {
+    this.shadowRoot.querySelectorAll('.color-tags').forEach(tag => {
+        tag.addEventListener('click', () => {
+            const color = tag.getAttribute('data-color');
+
+            if (this.selectedColors.has(color)) {
+                this.selectedColors.delete(color);
+                tag.classList.remove('selected');
+            } else {
+                this.selectedColors.add(color);
+                tag.classList.add('selected');
+            }
+
+            this.colorTagsUpdated = true;  
+            this.renderTasks();
+        });
     });
   }
 
-                                      // ADD EVENT LISTNERS FUNCTIONS
   /**
    * Attaches event listensers to navigation bar
    * buttons and theme switcher
@@ -399,8 +475,6 @@ class WeekDisplay extends HTMLElement {
       currentElement.style.height = `${newHeight}px`;
       currentElement.style.top = `${newTop}px`;
 
-      // const task = this.tasks.find(task => task.taskId == currentElement.getAttribute("data-id"));
-      console.log(task);
       if (task) {
         const newStartTime = Math.floor((newTop / calendar.offsetHeight) * totalMinutesDay);
         const newEndTime = newStartTime + Math.floor((newHeight / calendar.offsetHeight) * totalMinutesDay);
@@ -489,7 +563,7 @@ class WeekDisplay extends HTMLElement {
           `${this.formatTime(task.startTime)} - ${this.formatTime(task.endTime)}`;
         taskEl.appendChild(time);
 
-        taskEl.style.backgroundColor = "#FFDD57";
+        taskEl.style.backgroundColor = "#FFFAC8";
 
         this.addResizeHandles(taskEl);
         this.addRemoveButton(taskEl);
@@ -690,105 +764,102 @@ class WeekDisplay extends HTMLElement {
     const form = document.createElement('form');
     form.classList.add("form", `${darkModeOn}`);
     form.innerHTML = `
-<div class="form-close-button">✕</div>
-<label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
-<label>Title: <input type="text" name="title" value="${task.title}" required></label>
-<label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
-<label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
-<div class="duration-display"></div>
-<label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
-<div>
-  <p>Task color:</p>
-  <ul class="color-tags-container">
-    <li class="color-tags" data-color="#FFABAB" style="background-color: #FFABAB;"></li>
-    <li class="color-tags" data-color="#BFFCC6" style="background-color: #BFFCC6;"></li>
-    <li class="color-tags" data-color="#97A2FF" style="background-color: #97A2FF;"></li>
-    <li class="color-tags" data-color="#C4FAF8" style="background-color: #C4FAF8;"></li>
-    <li class="color-tags" data-color="#AFF8DB" style="background-color: #AFF8DB;"></li>
-    <li class="color-tags" data-color="#FF9CEE" style="background-color: #FF9CEE;"></li>
-    <li class="color-tags" data-color="#6EB5FF" style="background-color: #6EB5FF;"></li>
-    <li class="color-tags" data-color="#FFF5BA" style="background-color: #FFF5BA;"></li>
-  </ul>
-  <input type="hidden" name="color" id="color-input" value="${task.color}">
-</div>
-<button type="submit">Save</button>
-<div class="error-message"></div>
+    <div class="form-close-button">✕</div>
+    <label>Date: <input type="date" name="date" value="${this.formatDate(task.date)}" required></label>
+    <label>Title: <input type="text" name="title" value="${task.title}" required></label>
+    <label>Start Time: <input type="time" name="startTime" value="${this.convertMinutesToTime(task.startTime)}" required></label>
+    <label>End Time: <input type="time" name="endTime" value="${this.convertMinutesToTime(task.endTime)}" required></label>
+    <div class="duration-display"></div>
+    <label>Description: <textarea name="description" rows="6" cols="60">${task.description}</textarea></label>
+    <div>
+      <p>Task color:</p>
+      <ul class="color-tags-container ${darkModeOn}" style="display: flex; justify-content: center; align-items: center;">
+        <li class="color-tags" data-color="#FFB3BA" style="background-color: #FFB3BA;"></li>
+        <li class="color-tags" data-color="#B3E2CD" style="background-color: #B3E2CD;"></li>
+        <li class="color-tags" data-color="#D4C4FB" style="background-color: #D4C4FB;"></li>
+        <li class="color-tags" data-color="#FFFAC8" style="background-color: #FFFAC8;"></li>
+        <li class="color-tags" data-color="#BAE1FF" style="background-color: #BAE1FF;"></li>
+      </ul>
+      <input type="hidden" name="color" id="color-input" value="${task.color}">
+    </div>
+    <button type="submit">Save</button>
+    <div class="error-message"></div>
     `;
 
     const submitButton = form.querySelector('button[type="submit"]');
     submitButton.focus();
 
     const updateTimeDisplay = () => {
-        const startTimeInput = form.querySelector('input[name="startTime"]');
-        const endTimeInput = form.querySelector('input[name="endTime"]');
-        const durationDisplay = form.querySelector('.duration-display');
+      const startTimeInput = form.querySelector('input[name="startTime"]');
+      const endTimeInput = form.querySelector('input[name="endTime"]');
+      const durationDisplay = form.querySelector('.duration-display');
 
-        const startTime = this.convertTimeToMinutes(startTimeInput.value);
-        let endTime = this.convertTimeToMinutes(endTimeInput.value);
+      const startTime = this.convertTimeToMinutes(startTimeInput.value);
+      let endTime = this.convertTimeToMinutes(endTimeInput.value);
 
-        if (!endTimeInput.value) {
-            endTime = 1440;
-        }
+      if (!endTimeInput.value) {
+        endTime = 1440;
+      }
 
-        const duration = endTime - startTime;
+      const duration = endTime - startTime;
 
-        durationDisplay.textContent = duration > 0
-            ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
-            : 'Duration: 0 hours 0 minutes';
+      durationDisplay.textContent = duration > 0
+        ? `Duration: ${Math.floor(duration / 60)} hours ${duration % 60} minutes`
+        : 'Duration: 0 hours 0 minutes';
     };
 
     const colorInput = form.querySelector('#color-input');
     form.querySelectorAll(".color-tags").forEach(btn => {
-        if (btn.getAttribute("data-color") === task.color) {
-            btn.classList.add('selected');
-        }
-        btn.addEventListener('click', () => {
-            form.querySelectorAll(".color-tags").forEach(el => el.classList.remove('selected'));
-            btn.classList.add('selected');
-            colorInput.value = btn.getAttribute("data-color");
-        });
+      if (btn.getAttribute("data-color") === task.color) {
+        btn.classList.add('selected');
+      }
+      btn.addEventListener('click', () => {
+        form.querySelectorAll(".color-tags").forEach(el => el.classList.remove('selected'));
+        btn.classList.add('selected');
+        colorInput.value = btn.getAttribute("data-color");
+      });
     });
 
-form.addEventListener('submit', (e) => {
-    e.preventDefault();
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
 
-    const formData = new FormData(form);
-    const date = formData.get('date');
-    const title = formData.get('title');
-    const startTime = this.convertTimeToMinutes(formData.get('startTime'));
-    let endTime = this.convertTimeToMinutes(formData.get('endTime'));
-    const color = formData.get('color');
-    const errorMessageElement = form.querySelector('.error-message');
+      const formData = new FormData(form);
+      const date = formData.get('date');
+      const title = formData.get('title');
+      const startTime = this.convertTimeToMinutes(formData.get('startTime'));
+      let endTime = this.convertTimeToMinutes(formData.get('endTime'));
+      const color = formData.get('color');
+      const errorMessageElement = form.querySelector('.error-message');
 
-    errorMessageElement.style.display = 'none';
-    errorMessageElement.textContent = '';
+      errorMessageElement.style.display = 'none';
+      errorMessageElement.textContent = '';
 
-    const selectedDate = new Date(date);
-    if (isNaN(selectedDate.getTime())) {
+      const selectedDate = new Date(date);
+      if (isNaN(selectedDate.getTime())) {
         errorMessageElement.textContent = 'Please select a valid date.';
         errorMessageElement.style.display = 'block';
         return;
-    }
+      }
 
-    if (startTime < 0 || startTime > 1440) {
+      if (startTime < 0 || startTime > 1440) {
         errorMessageElement.textContent = 'Start time must be between 00:00 and 24:00.';
         errorMessageElement.style.display = 'block';
         return;
-    }
-    if (endTime < 0 || endTime > 1440) {
+      }
+      if (endTime < 0 || endTime > 1440) {
         errorMessageElement.textContent = 'End time must be between 00:00 and 24:00.';
         errorMessageElement.style.display = 'block';
         return;
-    }
-    if (endTime <= startTime) {
+      }
+      if (endTime <= startTime) {
         errorMessageElement.textContent = 'End time must be greater than start time.';
         errorMessageElement.style.display = 'block';
         return;
-    }
+      }
 
-    const taskIndex = this.tasks.findIndex(t => t.taskId == task.taskId);
+      const taskIndex = this.tasks.findIndex(t => t.taskId == task.taskId);
 
-    if (taskIndex > -1) {
+      if (taskIndex > -1) {
         // met a jour les info si la tache existe
         this.tasks[taskIndex].title = title;
         this.tasks[taskIndex].date = selectedDate;
@@ -796,7 +867,7 @@ form.addEventListener('submit', (e) => {
         this.tasks[taskIndex].startTime = startTime;
         this.tasks[taskIndex].endTime = endTime;
         this.tasks[taskIndex].color = color;
-    } else {
+      } else {
         // cree une nouvelle tache et push dans this.tasks
         task.title = title;
         task.date = selectedDate;
@@ -805,33 +876,53 @@ form.addEventListener('submit', (e) => {
         task.endTime = endTime;
         task.color = color;
         this.tasks.push(task);
-    }
+      }
 
-    this.saveTasksToLocalStorage();
-    this.tasks = this.loadTasksFromLocalStorage();
+      this.saveTasksToLocalStorage();
+      this.tasks = this.loadTasksFromLocalStorage();
 
-    overlay.remove(); 
-    this.renderTasks(); 
-  });
+      // Trigger close animation
+      form.classList.add('close');
+      setTimeout(() => {
+        overlay.remove();
+        this.renderTasks();
+      }, 300); // Match this timeout to your transition time
+    });
 
     const closeForm = (e) => {
-        if (e.key === 'Escape') {
-            overlay.remove(); 
-            document.removeEventListener('keydown', closeForm); 
-        }
+      if (e.key === 'Escape') {
+        form.classList.add('close');
+        setTimeout(() => {
+          overlay.remove();
+        }, 300);
+        document.removeEventListener('keydown', closeForm);
+      }
     };
+
     const closeBtn = form.querySelector(".form-close-button");
     closeBtn.addEventListener("click", () => {
+      form.classList.add('close');
+      setTimeout(() => {
         overlay.remove();
-        document.removeEventListener('keydown', closeForm); 
+        document.removeEventListener('keydown', closeForm);
+      }, 300);
     });
 
     document.addEventListener('keydown', closeForm);
+
+    // Add the form and overlay to the DOM
     overlay.appendChild(form);
     this.shadowRoot.appendChild(overlay);
 
+    // Trigger show animation
+    setTimeout(() => {
+      overlay.classList.add('show');
+      form.classList.add('show');
+    }, 10); // Short delay for smoother animation
+
     updateTimeDisplay();
   }
+
 
   /**
    * ajoute btn de suppression a la tache
@@ -974,7 +1065,7 @@ form.addEventListener('submit', (e) => {
                                                             // FORMATTING FUNCTIONS
   /**
    * formate la date pour rajouter a l'attribut value dans le form html
-   * de this.showTaskForm();
+   * de this.ghowTaskForm();
    * @param {*} dateString 
    * @returns date formattee
    */
@@ -1020,6 +1111,10 @@ form.addEventListener('submit', (e) => {
    */
   getTemplate() {
     return `
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
 :host {
@@ -1035,6 +1130,9 @@ form.addEventListener('submit', (e) => {
 
 * {
   box-sizing: border-box;
+  font-family: "Geist Mono", monospace;
+  font-optical-sizing: auto;
+  font-style: normal;
 }
 
 .container {
@@ -1054,16 +1152,11 @@ form.addEventListener('submit', (e) => {
   background-color: #4a90e2;
   color: #ffffff;
   z-index: 1;
-  border-bottom: 1px solid #e0e0e0;
-  margin-bottom: -1px;
-  border-right: 1px solid #e0e0e0;
-  margin-right: -1px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border-radius: 2px;
   text-align: center;
 }
 
@@ -1071,6 +1164,8 @@ form.addEventListener('submit', (e) => {
   font-size: 16px;
   font-weight: bold;
   height: 50px;
+  min-width: 50px;
+  overflow: hidden;
 }
 
 .day-header .day-number {
@@ -1122,6 +1217,7 @@ form.addEventListener('submit', (e) => {
   margin-right: -1px;
   height: 40px;
   position: relative;
+  min-width: 50px;
 }
 
                                 /* TASK ELEMENT LAYOUT */
@@ -1182,6 +1278,32 @@ form.addEventListener('submit', (e) => {
 .task.collapsing {
   opacity: 0;
 }
+
+.task {
+  transition: opacity 0.5s ease-in-out;
+}
+
+.fade-in {
+  opacity: 0;
+  animation: fadeIn 0.5s forwards;
+}
+
+.fade-out {
+  animation: fadeOut 0.5s forwards;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
 
                               /* REMOVE BUTTON STYLES */
 .remove-btn {
@@ -1254,9 +1376,14 @@ form.addEventListener('submit', (e) => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.overlay.show {
+  opacity: 1;
+  pointer-events: all;
 }
 
-/* Container for the form */
 .form {
   background-color: #ffffff;
   padding: 20px;
@@ -1268,9 +1395,22 @@ form.addEventListener('submit', (e) => {
   flex-direction: column;
   gap: 15px;
   position: relative;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-/* Close button styling */
+.form.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.form.close {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
 .form-close-button {
   position: absolute;
   top: 15px;
@@ -1328,30 +1468,6 @@ form.addEventListener('submit', (e) => {
   height: auto;
 }
 
-/* Color buttons container */
-.color-tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 0;
-  list-style: none;
-}
-
-/* Color button styling */
-.color-tags {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  cursor: pointer;
-  border: 2px solid transparent;
-  transition: border-color 0.3s ease;
-}
-
-.color-tags.selected {
-  border-color: #000000;
-}
-
-/* Save button styling */
 .form button[type="submit"] {
   padding: 10px 20px;
   font-size: 16px;
@@ -1393,6 +1509,7 @@ form.addEventListener('submit', (e) => {
   padding: 10px;
   border-radius: 8px;
   margin-bottom: 10px;
+  box-sizing: border-box;
 }
 
 .navbar button {
@@ -1411,7 +1528,7 @@ form.addEventListener('submit', (e) => {
 }
 
 .navbar .today-btn {
-font-weight: bold;
+  font-weight: bold;
 }
 
 .month-year-display {
@@ -1441,9 +1558,118 @@ font-weight: bold;
   font-weight: bold; 
 }
 
-                              /* PARAMS BUTTON NAVIGATION BAR */
+.color-tags-container {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background-color: #4a90e2; 
+  padding: 5px 10px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  height: 35px;
+}
 
-                          /* DARK MODE TOGGLE SWITCH */
+.color-tags-label {
+  color: #ffffff;
+  font-weight: bold;
+  margin-right: 10px;
+  font-size: 14px;
+}
+
+.color-tags {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin: 0 5px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  border: 2px solid transparent; 
+}
+
+.color-tags:hover {
+  transform: scale(1.2);
+}
+
+.color-tags.selected {
+  transform: scale(0.7);
+}
+
+.theme-switch-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px; /* Space between the elements */
+  font-size: 16px; 
+  color: #ffffff;
+  background-color: #4a90e2; 
+  padding: 5px 10px;
+  border-radius: 5px;
+  height: 35px;
+  width: 200px;
+  margin-right: 10px;
+}
+.color-tags-container.dark-mode {
+  background-color: #000000; 
+}
+.theme-switch-container.dark-mode {
+  background-color: #000000; 
+}
+
+
+.theme-state {
+  font-weight: bold;
+  font-size: 1rem;
+  transition: color 0.3s ease;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: White;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #2196F3;
+}
+
+input:checked + .slider:before {
+  transform: translateX(14px);
+}
+                       
+                            /* DARK MODE TOGGLE SWITCH */
 .switch { 
   position: relative;
   display: inline-block;
@@ -1549,11 +1775,6 @@ button.accentuated.dark-mode {
   color: White !important;
 }
 
-.resize-handle.dark-mode {
-  background-color: White;
-  border: solid White;
-}
-
 .form.dark-mode {
   background-color: #1c1c1c;
   color: #e0e0e0;
@@ -1645,29 +1866,33 @@ button.accentuated.dark-mode {
 <div class="container">
 
   <div class="navbar">
-    <button class="prev-week-btn"><i class="fas fa-arrow-left"></i></button>
-    <button class="next-week-btn"><i class="fas fa-arrow-right"></i></button>
-    <button class="today-btn"><i class="fas fa-calendar-day"></i></button>
 
-    <div class="month-year-display accentuated"></div>
+    <div class="theme-switch-container" title="switcher le theme couleur d'affichage">
+      <div class="theme-state">Mode sombre</div>
+      <label class="switch">
+        <input type="checkbox" id="dark-mode-toggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
 
-    <div>
+    <div title="filtrer les taches en fonction de la couleur">
       <ul class="color-tags-container">
-        <li class="color-tags" data-color="#FFABAB" style="background-color: #FFABAB;"></li>
-        <li class="color-tags" data-color="#BFFCC6" style="background-color: #BFFCC6;"></li>
-        <li class="color-tags" data-color="#97A2FF" style="background-color: #97A2FF;"></li>
-        <li class="color-tags" data-color="#C4FAF8" style="background-color: #C4FAF8;"></li>
-        <li class="color-tags" data-color="#AFF8DB" style="background-color: #AFF8DB;"></li>
-        <li class="color-tags" data-color="#FF9CEE" style="background-color: #FF9CEE;"></li>
-        <li class="color-tags" data-color="#6EB5FF" style="background-color: #6EB5FF;"></li>
-        <li class="color-tags" data-color="#FFF5BA" style="background-color: #FFF5BA;"></li>
+        <li class="color-tags-label">Tags Couleurs</li>
+        <li class="color-tags" data-color="#FFB3BA" style="background-color: #FFB3BA;" title="filtre rouge"></li>
+        <li class="color-tags" data-color="#B3E2CD" style="background-color: #B3E2CD;" title="filtre vert"></li>
+        <li class="color-tags" data-color="#D4C4FB" style="background-color: #D4C4FB;" title="filtre violet"></li>
+        <li class="color-tags" data-color="#FFFAC8" style="background-color: #FFFAC8;" title="filtre jaune"></li>
+        <li class="color-tags" data-color="#BAE1FF" style="background-color: #BAE1FF;" title="filtre bleu"></li>
       </ul>
     </div>
 
-    <label class="switch">
-      <input type="checkbox" id="dark-mode-toggle">
-      <span class="slider"></span>
-    </label>
+    <div class="month-year-display accentuated"></div>
+
+    <button class="prev-week-btn" title="Afficher la semaine précédente"><i class="fas fa-arrow-left"></i></button>
+    <button class="next-week-btn" title="Afficher la semaine suivante"><i class="fas fa-arrow-right"></i></button>
+    <button class="today-btn" title="Revenir à la date actuelle"><i class="fas fa-calendar-day"></i></button>
+
+
   </div>
 
   <div class="header-row">

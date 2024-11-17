@@ -9,7 +9,7 @@ class Task {
     this._description = description;
     // if color is undefined, set to defautl color
     if(color == null) {
-      this._color = "#FFDD57";
+      this._color = "#FFFAC8";
     } else {
       this._color = color;
     }
