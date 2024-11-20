@@ -14,6 +14,15 @@ class WeekDisplay extends HTMLElement {
         // action control variables
         this.isResizing = false;
         this.isCreatingTask = false;
+
+        // permet d'ajouter et enlever les event listeners 
+        // des raccourcis clavier a l'ouverture de fenetre
+        this.boundHandleRightBtn = this.handleRightBtn.bind(this);
+        this.boundHandleLeftBtn = this.handleLeftBtn.bind(this);
+        this.boundHandleDownBtn = this.handleDownBtn.bind(this);
+        this.boundHandleDarkModeShortcut = this.handleDarkModeShortcut.bind(this);
+        this.boundHandleFilterSelection = this.handleFilterSelection.bind(this);
+        this.boundHandleHelpShortcut = this.handleHelpShortcut.bind(this);
     }
 
     /**
@@ -79,18 +88,25 @@ class WeekDisplay extends HTMLElement {
      * le css est ecrit dans la fonction this.getTemplate() 
      */
     toggleDarkMode() {
+        const darkModeToggle = this.shadowRoot.querySelector("#dark-mode-toggle");
+        const themeState = this.shadowRoot.querySelector(".theme-state");
+        if (this.isDarkModeOn()) {
+            themeState.textContent = "Mode clair";
+            darkModeToggle.checked = false;
+        } else {
+            themeState.textContent = "Mode sombre";
+            darkModeToggle.checked = true;
+        }
+
         const elementsToToggle = this.shadowRoot.querySelectorAll(`
-          
             .container, .calendar, .day-header, .time-header, .empty,  
       .navbar, .header-row, .container-time-label, button:not(.close-btn), 
       .current-day, .theme-switch-container, .color-tags-container,
       .help-btn
-          
           `);
         elementsToToggle.forEach(el => el.classList.toggle("dark-mode"));
         this.renderTasks();
     }
-
 
     /**
      * teste si mode sombre est actuellement actif
@@ -332,9 +348,8 @@ class WeekDisplay extends HTMLElement {
             });
         });
 
-        this.colorTagsUpdated = false; // Reset flag after rendering tasks
+        this.colorTagsUpdated = false;
     }
-
 
     // ADD EVENT LISTNERS FUNCTIONS
     /**
@@ -376,127 +391,8 @@ class WeekDisplay extends HTMLElement {
         this.shadowRoot.querySelector('.help-btn').
         addEventListener('click', () => this.toggleHelpWindow());
 
-        /* TIME NAVIGATION */
-        // next week
-        const handleRightBtn = (event) => {
-            if (event.key === 'ArrowRight') {
-                this.changeWeek(1);
-
-                const rightBtn = this.shadowRoot.querySelector('.next-week-btn');
-                rightBtn.classList.add('button-hover'); // Hover effect
-
-                rightBtn.classList.add('button-click');
-
-                rightBtn.addEventListener('animationend', () => {
-                    rightBtn.classList.remove('button-hover');
-                    rightBtn.classList.remove('button-click');
-                }, { once: true });
-            }
-        };
-        document.addEventListener('keydown', handleRightBtn);
-
-        // last week
-        const handleLeftBtn = (event) => {
-            if (event.key === 'ArrowLeft') {
-                this.changeWeek(-1);
-
-                const leftBtn = this.shadowRoot.querySelector('.prev-week-btn');
-                leftBtn.classList.add('button-hover');
-
-                // Trigger click animation
-                leftBtn.classList.add('button-click');
-
-                // Remove hover and click after animation finishes
-                leftBtn.addEventListener('animationend', () => {
-                    leftBtn.classList.remove('button-hover');
-                    leftBtn.classList.remove('button-click');
-                }, { once: true });
-            }
-        };
-        document.addEventListener('keydown', handleLeftBtn);
-
-        // this week
-        const handleDownBtn = (event) => {
-            if (event.key === 'ArrowDown') {
-                this.goToToday();
-
-                const downBtn = this.shadowRoot.querySelector('.today-btn');
-                downBtn.classList.add('button-hover');
-
-                // Trigger click animation
-                downBtn.classList.add('button-click');
-
-                // Remove hover and click after animation finishes
-                downBtn.addEventListener('animationend', () => {
-                    downBtn.classList.remove('button-hover');
-                    downBtn.classList.remove('button-click');
-                }, { once: true });
-            }
-        };
-        document.addEventListener('keydown', handleDownBtn);
-
-        const handleDarkModeShortcut = (event) => {
-            if (event.key === 'i') {
-                this.toggleDarkMode();
-                const darkModeToggle = this.shadowRoot.querySelector("#dark-mode-toggle");
-                const themeState = this.shadowRoot.querySelector(".theme-state");
-                themeState.textContent = darkModeToggle.checked ? "Mode clair" : "Mode sombre";
-                darkModeToggle.checked = !darkModeToggle.checked;
-            }
-        };
-        document.addEventListener('keydown', handleDarkModeShortcut);
-
-        const handleFilterSelection = (event) => {
-            const colorCodes = [];
-            const colorTags = this.shadowRoot.querySelectorAll(".color-tags");
-            colorTags.forEach(tag => {
-                colorCodes.push(tag.getAttribute("data-color"));
-                tag.classList.remove("selected");
-            });;
-            switch (event.key) {
-                case '1':
-                    this.selectedColors.clear();
-                    this.selectedColors.add(colorCodes[0]);
-                    colorTags[0].classList.add("selected");
-                    this.renderTasks();
-                    break;
-                case '2':
-                    this.selectedColors.clear();
-                    this.selectedColors.add(colorCodes[1]);
-                    colorTags[1].classList.add("selected");
-                    this.renderTasks();
-                    break;
-                case '3':
-                    this.selectedColors.clear();
-                    this.selectedColors.add(colorCodes[2]);
-                    colorTags[2].classList.add("selected");
-                    this.renderTasks();
-                    break;
-                case '4':
-                    this.selectedColors.clear();
-                    this.selectedColors.add(colorCodes[3]);
-                    colorTags[3].classList.add("selected");
-                    this.renderTasks();
-                    break;
-                case '5':
-                    this.selectedColors.clear();
-                    this.selectedColors.add(colorCodes[4]);
-                    colorTags[4].classList.add("selected");
-                    this.renderTasks();
-                    break;
-            }
-        }
-        document.addEventListener("keydown", handleFilterSelection);
-
-        const handleHelpShortcut = (event) => {
-            if (event.key === 'h') {
-                const helpWin = this.shadowRoot.querySelector(".help-window");
-                if (!helpWin) {
-                    this.toggleHelpWindow();
-                }
-            }
-        };
-        document.addEventListener("keydown", handleHelpShortcut);
+        // ajouter les raccourcis clavier
+        this.addEventListeners();
     }
 
     /**
@@ -504,6 +400,8 @@ class WeekDisplay extends HTMLElement {
      * how to use the app
      */
     toggleHelpWindow() {
+        this.removeEventListeners();
+
         const overlay = document.createElement('div');
         overlay.className = 'overlay';
 
@@ -561,25 +459,27 @@ class WeekDisplay extends HTMLElement {
           </tbody>
       </table>
     </div>
-
     `;
 
         const closeBtn = help.querySelector('.close-btn');
-        closeBtn.addEventListener('click', () => {
+
+        // Define reusable functions to avoid duplicates
+        const closeOverlay = () => {
             overlay.remove();
-        });
+            document.removeEventListener('keydown', closeOnEscapeKey);
+            overlay.removeEventListener('click', closeOnOverlayClick);
+            this.addEventListeners(); // Re-add event listeners when the help window is closed
+        };
 
         const closeOnOverlayClick = (e) => {
-            if (e.target === overlay) {
-                overlay.remove();
-            }
+            if (e.target === overlay) closeOverlay();
         };
 
         const closeOnEscapeKey = (e) => {
-            if (e.key === 'Escape' || e.key === "h") {
-                overlay.remove();
-            }
+            if (e.key === 'Escape' || e.key === 'h') closeOverlay();
         };
+
+        closeBtn.addEventListener('click', closeOverlay);
 
         overlay.appendChild(help);
         this.shadowRoot.appendChild(overlay);
@@ -591,7 +491,6 @@ class WeekDisplay extends HTMLElement {
 
         overlay.addEventListener('click', closeOnOverlayClick);
         document.addEventListener('keydown', closeOnEscapeKey);
-
     }
 
     /**
@@ -804,7 +703,7 @@ class WeekDisplay extends HTMLElement {
 
     /**
      * drag tasks and drop them else where with mouse
-     * @param {*} taskEl reference element html a modifer les prop top et height
+     * @param {*} taskEl reference element html a modifer les proprietes top et height
      * @param {*} task   reference objet task, modifier les properties
      */
     dragAndDrop(taskEl, task) {
@@ -918,7 +817,6 @@ class WeekDisplay extends HTMLElement {
     }
 
     /**
-     * 
      * @param {*} e evennement
      * @param {*} context soit resize ou create le calcul differe
      * @returns calcule et retourne la position x et y relatif a l'elemenet calendrier (grid)
@@ -959,7 +857,8 @@ class WeekDisplay extends HTMLElement {
      * @param {*} task trouve la tache a modifier
      */
     showTaskForm(task) {
-        if (this.isDragging) { return; }
+        if (this.isDragging) return;
+        this.removeEventListeners();
 
         const overlay = document.createElement('div');
         overlay.className = 'overlay';
@@ -1091,31 +990,37 @@ class WeekDisplay extends HTMLElement {
             setTimeout(() => {
                 overlay.remove();
                 this.renderTasks();
+                this.addEventListeners();
             }, 300);
         });
 
-        const closeForm = (e) => {
-            if (e.key === 'Escape' || e.target === overlay) {
-                form.classList.add('close');
-                setTimeout(() => {
-                    overlay.remove();
-                }, 300);
-                document.removeEventListener('keydown', closeForm);
+        const closeOverlay = () => {
+            form.classList.add('close');
+            setTimeout(() => {
+                overlay.remove();
+                document.removeEventListener('keydown', closeOnEscape);
+                this.addEventListeners();
+            }, 300);
+        };
+
+
+        // eschap key handler
+        const closeOnEscape = (e) => {
+            if (e.key === 'Escape') {
+                overlay.remove();
+                document.removeEventListener('keydown', closeOnEscape);
+                this.addEventListeners();
             }
         };
 
         const closeBtn = form.querySelector(".form-close-button");
-        closeBtn.addEventListener("click", () => {
-            form.classList.add('close');
-            setTimeout(() => {
-                overlay.remove();
-                document.removeEventListener('keydown', closeForm);
-            }, 300);
+        closeBtn.addEventListener("click", closeOverlay);
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeOverlay();
         });
 
-        overlay.addEventListener('click', closeForm);
-
-        document.addEventListener('keydown', closeForm);
+        document.addEventListener('keydown', closeOnEscape);
 
         overlay.appendChild(form);
         this.shadowRoot.appendChild(overlay);
@@ -1127,6 +1032,7 @@ class WeekDisplay extends HTMLElement {
 
         updateTimeDisplay();
     }
+
 
     /**
      * ajoute btn de suppression a la tache
@@ -1275,6 +1181,131 @@ class WeekDisplay extends HTMLElement {
         document.addEventListener('mouseup', onMouseUp);
     }
 
+    /* SHORTCUT KEYS EVENT LISTENERS FUNCTIONS */
+    addEventListeners() {
+        document.addEventListener('keydown', this.boundHandleRightBtn);
+        document.addEventListener('keydown', this.boundHandleLeftBtn);
+        document.addEventListener('keydown', this.boundHandleDownBtn);
+        document.addEventListener('keydown', this.boundHandleDarkModeShortcut);
+        document.addEventListener('keydown', this.boundHandleFilterSelection);
+        document.addEventListener('keydown', this.boundHandleHelpShortcut);
+        console.log("hello")
+    }
+    removeEventListeners() {
+        document.removeEventListener('keydown', this.boundHandleRightBtn);
+        document.removeEventListener('keydown', this.boundHandleLeftBtn);
+        document.removeEventListener('keydown', this.boundHandleDownBtn);
+        document.removeEventListener('keydown', this.boundHandleDarkModeShortcut);
+        document.removeEventListener('keydown', this.boundHandleFilterSelection);
+        document.removeEventListener('keydown', this.boundHandleHelpShortcut);
+    }
+
+    handleRightBtn(event) {
+        if (event.key === 'ArrowRight') {
+            this.changeWeek(1);
+
+            const rightBtn = this.shadowRoot.querySelector('.next-week-btn');
+            rightBtn.classList.add('button-hover'); // Hover effect
+
+            rightBtn.classList.add('button-click');
+
+            rightBtn.addEventListener('animationend', () => {
+                rightBtn.classList.remove('button-hover');
+                rightBtn.classList.remove('button-click');
+            }, { once: true });
+        }
+    }
+
+    handleLeftBtn(event) {
+        if (event.key === 'ArrowLeft') {
+            this.changeWeek(-1);
+
+            const leftBtn = this.shadowRoot.querySelector('.prev-week-btn');
+            leftBtn.classList.add('button-hover');
+
+            // Trigger click animation
+            leftBtn.classList.add('button-click');
+
+            // Remove hover and click after animation finishes
+            leftBtn.addEventListener('animationend', () => {
+                leftBtn.classList.remove('button-hover');
+                leftBtn.classList.remove('button-click');
+            }, { once: true });
+        }
+    };
+
+    handleDownBtn(event) {
+        if (event.key === 'ArrowDown') {
+            this.goToToday();
+
+            const downBtn = this.shadowRoot.querySelector('.today-btn');
+            downBtn.classList.add('button-hover');
+
+            downBtn.classList.add('button-click');
+
+            downBtn.addEventListener('animationend', () => {
+                downBtn.classList.remove('button-hover');
+                downBtn.classList.remove('button-click');
+            }, { once: true });
+        }
+    };
+
+    handleDarkModeShortcut(event) {
+        if (event.key === 'i') {
+            this.toggleDarkMode();
+        }
+    };
+
+    handleFilterSelection(event) {
+        const colorCodes = [];
+        const colorTags = this.shadowRoot.querySelectorAll(".color-tags");
+        colorTags.forEach(tag => {
+            colorCodes.push(tag.getAttribute("data-color"));
+            tag.classList.remove("selected");
+        });;
+        switch (event.key) {
+            case '1':
+                this.selectedColors.clear();
+                this.selectedColors.add(colorCodes[0]);
+                colorTags[0].classList.add("selected");
+                this.renderTasks();
+                break;
+            case '2':
+                this.selectedColors.clear();
+                this.selectedColors.add(colorCodes[1]);
+                colorTags[1].classList.add("selected");
+                this.renderTasks();
+                break;
+            case '3':
+                this.selectedColors.clear();
+                this.selectedColors.add(colorCodes[2]);
+                colorTags[2].classList.add("selected");
+                this.renderTasks();
+                break;
+            case '4':
+                this.selectedColors.clear();
+                this.selectedColors.add(colorCodes[3]);
+                colorTags[3].classList.add("selected");
+                this.renderTasks();
+                break;
+            case '5':
+                this.selectedColors.clear();
+                this.selectedColors.add(colorCodes[4]);
+                colorTags[4].classList.add("selected");
+                this.renderTasks();
+                break;
+        }
+    }
+
+    handleHelpShortcut(event) {
+        if (event.key === 'h') {
+            const helpWin = this.shadowRoot.querySelector(".help-window");
+            if (!helpWin) {
+                this.toggleHelpWindow();
+            }
+        }
+    };
+
     /**
      * dimensions des slots qui composent le grid du calendrier 
      * @returns {width, height}
@@ -1388,7 +1419,7 @@ class WeekDisplay extends HTMLElement {
 }
 
 .day-header {
-  font-size: 16px;
+  font-size: 19px;
   font-weight: bold;
   height: 50px;
   min-width: 50px;
@@ -1464,23 +1495,27 @@ class WeekDisplay extends HTMLElement {
 }
 
 .title {
-  font-size: 12px; 
+  font-size: 17px; 
   color: #333; 
   text-align: left;
+  width: calc(100% - 20px);
+  margin-top: 5px;
 }
 
 .time {
-  font-size: 10px; 
+  font-size: 15px; 
   color: #333; 
   text-align: left;
+  width: calc(100% - 20px);
 }
 
 .description {
-  font-size: 10px; 
+  font-size: 17px; 
   color: #333; 
   text-align: left;
   margin-top: 5px;
   padding: 8px;
+  width: calc(100% - 20px);
 }
 
 .task:hover{
@@ -1538,14 +1573,13 @@ class WeekDisplay extends HTMLElement {
   right: 6px;
   cursor: pointer;
   padding: 3px;
-  background-color: #000000;
-  color: #fff;
+  background-color: rgba(0,0,0,0) !important;
+  color: #000;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
                         /* RESIZE HANDLE STYLES */
@@ -1618,9 +1652,10 @@ class WeekDisplay extends HTMLElement {
   background-color: #ffffff;
   padding: 20px;
   border-radius: 10px;
-  width: 90%;
-  max-width: 500px;
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+  width: 40vw;
+  height: 700px;
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
   gap: 15px;
@@ -1628,6 +1663,7 @@ class WeekDisplay extends HTMLElement {
   opacity: 0;
   transform: scale(0.8);
   transition: opacity 0.3s ease, transform 0.3s ease;
+  overflow: hidden;
 }
 
 .form.show {
@@ -1648,14 +1684,12 @@ class WeekDisplay extends HTMLElement {
   width: 15px;
   height: 15px;
   cursor: pointer;
-  background-color: #000000;
-  color: #ffffff;
+  color: inherit;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   border: none;
 }
 
@@ -1719,6 +1753,10 @@ class WeekDisplay extends HTMLElement {
   font-size: 14px;
   color: #666666;
 }
+.duration-display {
+  font-size: 14px;
+  color: #666666;
+}
 
 /* Error message styling */
 .error-message {
@@ -1744,6 +1782,10 @@ class WeekDisplay extends HTMLElement {
   overflow: hidden;
 }
 
+.navbar * {
+  font-size: 20px !important;
+}
+
 .navbar button {
   background-color: #ffffff; 
   color: #4a90e2;
@@ -1751,7 +1793,6 @@ class WeekDisplay extends HTMLElement {
   padding: 5px 10px; 
   border-radius: 4px;
   cursor: pointer; 
-  font-size: 14px;
   transition: background-color 0.3s ease; 
 }
 
@@ -1786,7 +1827,7 @@ class WeekDisplay extends HTMLElement {
 
 .accentuated {
   text-decoration: underline;
-  color: #e0e0e0;
+  color: #e0e0e0 !important;
   font-weight: bold; 
 }
 
@@ -1795,7 +1836,6 @@ class WeekDisplay extends HTMLElement {
   list-style: none;
   padding: 0;
   margin: 0;
-  background-color: #4a90e2; 
   padding: 5px 10px;
   border-radius: 5px;
   display: flex;
@@ -1835,18 +1875,17 @@ class WeekDisplay extends HTMLElement {
   gap: 10px; /* Space between the elements */
   font-size: 16px; 
   color: #ffffff;
-  background-color: #4a90e2; 
   padding: 5px 10px;
   border-radius: 5px;
   height: 35px;
-  width: 200px;
+  width: 250px;
   margin-right: 10px;
 }
 .color-tags-container.dark-mode {
-  background-color: #000000; 
+  background-color: rgba(0, 0, 0, 0); 
 }
 .theme-switch-container.dark-mode {
-  background-color: #000000; 
+  background-color: rgba(0, 0, 0, 0); 
 }
 
 .theme-state {
@@ -1944,7 +1983,7 @@ input:checked + .slider:before {
                             /* DARK MODE STYLES */
 .dark-mode {
   background-color: #121212;
-/*  color: #e0e0e0; */
+  color: #FFFFFF ; 
 }
 
 .container.dark-mode {
@@ -2004,7 +2043,7 @@ button.accentuated.dark-mode {
 
 .form.dark-mode {
   background-color: #1c1c1c;
-  color: #e0e0e0;
+  color: #FFFFFF !important;
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -2017,6 +2056,10 @@ button.accentuated.dark-mode {
   border: 1px solid #444;
   padding: 10px;
   border-radius: 4px;
+}
+
+.form.dark-mode label {
+  color: #FFFFFF;
 }
 
 .form.dark-mode button {
@@ -2091,8 +2134,8 @@ button.accentuated.dark-mode {
                                             /* HELP BUTTON */
 .help-btn {
   position: fixed; 
-  bottom: 20px;
-  right: 20px;
+  bottom: 30px;
+  right: 30px;
   background-color: #4a90e2;
   color: white;
   font-size: 24px;
