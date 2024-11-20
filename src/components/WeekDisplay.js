@@ -1574,7 +1574,7 @@ class WeekDisplay extends HTMLElement {
   cursor: pointer;
   padding: 3px;
   background-color: rgba(0,0,0,0) !important;
-  color: #000;
+  color: #000 !important;
   border-radius: 50%;
   font-size: 20px;
   display: flex;
@@ -1583,10 +1583,9 @@ class WeekDisplay extends HTMLElement {
 }
 
                         /* RESIZE HANDLE STYLES */
-
 .resize-handle {
   position: absolute;
-  width: 40%;
+  width: 60%;
   height: 10px;
   border-radius: 5px;
   border: solid black;
@@ -1603,12 +1602,12 @@ class WeekDisplay extends HTMLElement {
 
 .top-handle {
   top: calc(0% - ( var(--task-width) / 2));
-  left: calc(50% - ( 40% / 2));
+  left: calc(50% - ( 60% / 2));
 }
 
 .bottom-handle {
   top: calc(100% - (var(--task-width) / 2));
-  left: calc(50% - ( 40% / 2));
+  left: calc(50% - ( 60% / 2));
 }
 
 
@@ -1663,7 +1662,7 @@ class WeekDisplay extends HTMLElement {
   opacity: 0;
   transform: scale(0.8);
   transition: opacity 0.3s ease, transform 0.3s ease;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .form.show {
@@ -2163,21 +2162,22 @@ button.accentuated.dark-mode {
   pointer-events: none;
 }
 
-/* HELP WINDOW */
+                                          /* HELP WINDOW */
 /* General Styles for Help Window */
 .help-window {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.9);
-  width: 80%;
-  max-width: 600px;
+  width: 70vw;
+  height: 50vh;
   padding: 20px;
   border-radius: 10px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
   z-index: 1000;
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
+  overflow: auto;
 }
 
 /* Show the help window with a smooth animation */
